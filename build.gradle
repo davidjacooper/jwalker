@@ -1,0 +1,39 @@
+plugins {
+    id 'java-library'
+    id 'groovy'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // SLF4J for logging
+    implementation 'org.slf4j:slf4j-api:2.0.0'
+    testImplementation 'ch.qos.logback:logback-classic:1.3.0'
+
+    // Apache Commons Compress, for recursing into .zip, .tar, etc. files.
+    implementation 'org.apache.commons:commons-compress:1.24.0'
+    implementation 'com.github.luben:zstd-jni:1.5.5-6' // For Zstandard compression
+    implementation 'org.tukaani:xz:1.9'   // For LZMA (.xz, .txz)
+    implementation 'org.brotli:dec:0.1.2' // For Brotli compression (.br)
+
+    // Needed for IOUtils and FileUtils.
+    implementation 'commons-io:commons-io:2.11.0'
+
+    // Testing with Spock
+    testImplementation 'org.codehaus.groovy:groovy:3.0.15'
+    testImplementation 'org.spockframework:spock-core:2.2-groovy-3.0'
+    testImplementation 'junit:junit:4.13.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
