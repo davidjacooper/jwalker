@@ -51,6 +51,9 @@ public class JWalkerOperation
     private final ErrorHandler errorHandler;
     private final LinkOption[] linkOptions;
 
+    private final HashSet<Path> excludedSubPaths = new HashSet<>();
+    private final HashSet<Path> nonExcludedSubPaths = new HashSet<>();
+
     public JWalkerOperation(JWalker options,
                             FileConsumer fileConsumer,
                             ErrorHandler errorHandler)
@@ -99,7 +102,10 @@ public class JWalkerOperation
             }
             catch(IOException e)
             {
-                error(String.format("Could not read POSIX file attributes from '%s'", fsPath), e);
+                error(fsPath,
+                      attr,
+                      String.format("Could not read POSIX file attributes from '%s'", fsPath),
+                      e);
             }
 
             if(posixAttr != null)
@@ -152,7 +158,10 @@ public class JWalkerOperation
             }
             catch(IOException e)
             {
-                error(String.format("Could not read file attributes from '%s'", rootPath), e);
+                error(rootPath,
+                      new FileAttributes(),
+                      String.format("Could not read file attributes from '%s'", rootPath),
+                      e);
                 attr = new FileAttributes();
                 attr.put(FileAttributes.TYPE, FileAttributes.Type.REGULAR_FILE);
             }
@@ -165,11 +174,11 @@ public class JWalkerOperation
         }
     }
 
-    public void error(String msg, Exception ex)
+    public void error(Path path, FileAttributes attr, String msg, Exception ex)
     {
         // Called from various ArchiveExtractor subclasses, and within this class.
         log.error(msg, ex);
-        errorHandler.error(msg, ex);
+        errorHandler.error(path, attr, msg, ex);
     }
 
     public void walkTree(Path fsPath,
@@ -185,17 +194,20 @@ public class JWalkerOperation
                     @Override
                     public FileVisitResult preVisitDirectory(Path dirFsPath, BasicFileAttributes attrs)
                     {
+                        var fileDisplayPath = displayPath.resolve(fsPath.relativize(dirFsPath));
+
                         // Only apply exclusions to directories
                         for(var matcher : options.exclusions())
                         {
                             if(matcher.matches(dirFsPath))
                             {
                                 // Directory matches exclusion pattern; skip the entire branch.
+                                excludedSubPaths.add(fileDisplayPath);
                                 return FileVisitResult.SKIP_SUBTREE;
                             }
                         }
+                        nonExcludedSubPaths.add(fileDisplayPath);
 
-                        var fileDisplayPath = displayPath.resolve(fsPath.relativize(dirFsPath));
                         filterFile(dirFsPath,
                                    fileDisplayPath,
                                    fileDisplayPath,
@@ -231,7 +243,10 @@ public class JWalkerOperation
         }
         catch(IOException e)
         {
-            error(String.format("Cannot traverse directory tree at '%s'", fsPath), e);
+            error(displayPath,
+                  new FileAttributes(),
+                  String.format("Cannot traverse directory tree at '%s'", fsPath),
+                  e);
         }
     }
 
@@ -253,7 +268,8 @@ public class JWalkerOperation
      *                    displayPath may reflect the original compressed name, while matchPath the
      *                    decompressed name.)
      * @param input       An InputStream supplier, for streaming IO operations.
-     * @param metadata    A container into which filesystem/archive metadata should be stored.
+     * @param attr        The file's various attributes (depending on the features of its containing
+     *                    filesystem/archive).
      */
     public void filterFile(Path fsPath,
                            Path matchPath,
@@ -267,17 +283,55 @@ public class JWalkerOperation
         log.debug("Filtering fsPath = '{}', matchPath = '{}', displayPath = '{}', exclusions = {}, inclusions = {}",
             fsPath, matchPath, displayPath, exclusions, inclusions);
 
-        for(var matcher : exclusions)
+        // Check whether every subpath prefix has been excluded.
+        //
+        // (Files.walkFileTree() already prunes the search for excluded filesystem directories, but
+        // the mechanisms for parsing _archives_ do not, because archives are not really stored
+        // hierarchically.)
+        //
+        // While we're at it, we check the full path as well.
+
+        for(int prefixSize = 1; prefixSize <= matchPath.getNameCount(); prefixSize++)
         {
-            if(matcher.matches(matchPath))
+            var subPath = matchPath.subpath(0, prefixSize);
+            if(!nonExcludedSubPaths.contains(subPath))
             {
-                log.debug("Applying exclusion '{}'", matcher);
-                // File matches exclusion pattern, so skip file. That is, don't call
-                // the callback. If it's a compressed/archive file, then we won't recurse into it
-                // _even if_ 'recurseIntoArchives' is true (consistent with directories).
-                return;
+                var excluded = excludedSubPaths.contains(subPath);
+                if(!excluded)
+                {
+                    for(var matcher : exclusions)
+                    {
+                        if(matcher.matches(subPath))
+                        {
+                            excluded = true;
+                            excludedSubPaths.add(subPath);
+                            break;
+                        }
+                    }
+                }
+                if(excluded)
+                {
+                    log.debug("Excluding '{}' because path '{}' has been excluded", matchPath, subPath);
+                    return;
+                }
+                else
+                {
+                    nonExcludedSubPaths.add(subPath);
+                }
             }
         }
+
+        // for(var matcher : exclusions)
+        // {
+        //     if(matcher.matches(matchPath))
+        //     {
+        //         log.debug("Applying exclusion '{}'", matcher);
+        //         // File matches exclusion pattern, so skip file. That is, don't call
+        //         // the callback. If it's a compressed/archive file, then we won't recurse into it
+        //         // _even if_ 'recurseIntoArchives' is true (consistent with directories).
+        //         return;
+        //     }
+        // }
 
         var type = attr.get(FileAttributes.TYPE);
         ArchiveExtractor extractor = null;

@@ -5,6 +5,10 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
+/**
+ * Entry point into the JWalker library, providing various option-setting methods, and the
+ * walk() method that performs the actual task.
+ */
 public class JWalker
 {
     @FunctionalInterface
@@ -16,13 +20,14 @@ public class JWalker
     @FunctionalInterface
     public interface FileConsumer
     {
-        public void accept(Path displayPath, InputSupplier input, FileAttributes fileMetadata);
+        public void accept(Path displayPath, InputSupplier input, FileAttributes attr);
     }
 
     @FunctionalInterface
     public interface ErrorHandler
     {
-        public void error(String message, Throwable exception);
+        public void error(Path displayPath, FileAttributes attr,
+                          String message, Exception exception);
     }
 
 
@@ -30,7 +35,7 @@ public class JWalker
     private boolean recurseIntoArchives = true;
     private boolean followLinks = false;      // TBD: whether the follow FS symlinks. (We're not going to follow links within archives.)
     private boolean unixAttributes = true;
-    private Set<FileAttributes.Type> fileTypes = EnumSet.of(FileAttributes.Type.REGULAR_FILE);
+    private Set<FileAttributes.Type> fileTypes = new HashSet<>(Set.of(FileAttributes.Type.REGULAR_FILE));
 
     private List<PathMatcher> inclusions = new ArrayList<>();
     private List<PathMatcher> exclusions = new ArrayList<>();
@@ -51,7 +56,7 @@ public class JWalker
 
     public void walk(Path rootPath, FileConsumer fileConsumer)
     {
-        walk(rootPath, fileConsumer, (msg, ex) -> { throw new JWalkerException(msg, ex); });
+        walk(rootPath, fileConsumer, (path, attr, msg, ex) -> { throw new JWalkerException(msg, ex); });
     }
 
     public JWalker maxDepth(int d)
@@ -127,8 +132,6 @@ public class JWalker
     boolean recurseIntoArchives()  { return recurseIntoArchives; }
     boolean followLinks()          { return followLinks; }
     boolean unixAttributes()       { return unixAttributes; }
-
-    // ErrorPolicy errorPolicy()      { return errorPolicy; }
 
     private FileSystem fs = FileSystems.getDefault();
 

@@ -75,7 +75,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                         Path fsPath, //unused
                         Path displayPath,
                         JWalker.InputSupplier input,
-                        FileAttributes archiveAttr) // unused
+                        FileAttributes archiveAttr)
         throws ArchiveSkipException
     {
         log.debug("Reading streamed archive '{}'", displayPath);
@@ -101,6 +101,8 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                     {
                         log.warn("Couldn't read entry '{}' from archive '{}'", displayPath, entry);
                         operation.error(
+                            displayPath,
+                            archiveAttr,
                             String.format(
                                 "Couldn't read archive entry '%s' from archive file '%s'",
                                 entry.getName(), displayPath),
@@ -109,7 +111,6 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                     }
 
                     var entryPath = Path.of("", entry.getName().split(ARCHIVE_DIRECTORY_SEPARATOR));
-                    // var metadata = new HashMap<String,String>();
                     log.debug("File in archive: {}", entryPath);
 
 
@@ -123,6 +124,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                     {
                         // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/ar/ArArchiveEntry.html
                         var arEntry = (ArArchiveEntry) entry;
+                        attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.AR);
                         attr.put(FileAttributes.GROUP_ID, (long)arEntry.getGroupId());
                         attr.put(FileAttributes.USER_ID,  (long)arEntry.getUserId());
                         attr.put(FileAttributes.MODE,     arEntry.getMode());
@@ -135,6 +137,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                     {
                         // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/arj/ArjArchiveEntry.html
                         var arjEntry = (ArjArchiveEntry) entry;
+                        attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.ARJ);
                         attr.put(FileAttributes.ARJ_PLATFORM_CODE, arjEntry.getHostOs());
                         if(arjEntry.isHostOsUnix())
                         {
@@ -150,6 +153,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                         // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/cpio/CpioArchiveEntry.html
                         var cpioEntry = (CpioArchiveEntry) entry;
 
+                        attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.CPIO);
                         attr.put(FileAttributes.GROUP_ID, cpioEntry.getGID());
                         attr.put(FileAttributes.USER_ID,  cpioEntry.getUID());
 
@@ -200,6 +204,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                         // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/dump/DumpArchiveEntry.html
                         var dumpEntry = (DumpArchiveEntry) entry;
 
+                        attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.DUMP);
                         var ctime = dumpEntry.getCreationTime();
                         if(ctime != null)
                         {
@@ -226,6 +231,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
 
                         var tarEntry = (TarArchiveEntry) entry;
 
+                        attr.put(FileAttributes.ARCHIVE,          FileAttributes.Archive.TAR);
                         attr.put(FileAttributes.GROUP_ID,         tarEntry.getLongGroupId());
                         attr.put(FileAttributes.GROUP_NAME,       tarEntry.getGroupName());
                         attr.put(FileAttributes.USER_ID,          tarEntry.getLongUserId());
@@ -267,6 +273,11 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                             type = null;
                         }
                     }
+                    else
+                    {
+                        // Theoretically not possible, but just in case...
+                        attr.put(FileAttributes.ARCHIVE, FileAttributes.Archive.UNKNOWN);
+                    }
 
                     attr.put(FileAttributes.TYPE, type);
 
@@ -279,6 +290,8 @@ public class StreamArchiveExtractor extends ArchiveExtractor
         catch(ArchiveException | IOException e)
         {
             operation.error(
+                displayPath,
+                archiveAttr,
                 "Could not extract archive '" + displayPath + "': " + e.getMessage(),
                 e);
             throw new ArchiveSkipException(e);

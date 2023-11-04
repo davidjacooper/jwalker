@@ -30,7 +30,8 @@ public class SevenZExtractor extends RandomAccessArchiveExtractor
     @Override
     protected void extract(JWalkerOperation operation,
                            Path fsPath,
-                           Path displayPath) throws IOException
+                           Path displayPath,
+                           FileAttributes archiveAttr) throws IOException
     {
         log.debug("Reading 7Z archive '{}'", displayPath);
         try(var zipFile = new SevenZFile(fsPath.toFile()))
@@ -41,6 +42,7 @@ public class SevenZExtractor extends RandomAccessArchiveExtractor
                 log.debug("Entry in .7z: {}", entryPath);
 
                 var attr = new FileAttributes();
+                attr.put(FileAttributes.ARCHIVE, FileAttributes.Archive.SEVENZ);
                 attr.put(FileAttributes.SIZE, entry.getSize());
 
                 FileAttributes.Type type;
@@ -74,65 +76,22 @@ public class SevenZExtractor extends RandomAccessArchiveExtractor
                     attr.put(FileAttributes.LAST_MODIFIED_TIME, entry.getLastModifiedTime());
                 }
 
-                if(entry.getHasWindowsAttributes())
-                {
-                    attr.put(FileAttributes.DOS_ATTRIBUTES, entry.getWindowsAttributes());
-                }
-
                 if(entry.getHasCrc())
                 {
                     attr.put(FileAttributes.CHECKSUM, entry.getCrcValue());
                 }
 
+                if(entry.getHasWindowsAttributes())
+                {
+                    var flags = entry.getWindowsAttributes();
+                    attr.put(FileAttributes.DOS_READONLY, (flags & 0x1) != 0);
+                    attr.put(FileAttributes.DOS_HIDDEN,   (flags & 0x2) != 0);
+                    attr.put(FileAttributes.DOS_ARCHIVE,  (flags & 0x20) != 0);
+                }
 
                 operation.filterFile(displayPath.resolve(entryPath),
                                      () -> zipFile.getInputStream(entry),
                                      attr);
-
-                // if(!entry.isDirectory())
-                // {
-                //     var entryPath = Path.of("", entry.getName().split(ARCHIVE_DIRECTORY_SEPARATOR));
-                //     //var metadata = new HashMap<String,String>();
-                //     var attr = new SevenZEntryAttributes();
-                //     log.debug("File in .7z: {}", entryPath);
-                //
-                //     if(entry.getHasCreationDate())
-                //     {
-                //         attr.creationTime(entry.getCreationTime());
-                //     }
-                //
-                //     if(entry.getHasAccessDate())
-                //     {
-                //         attr.lastAccessTime(entry.getAccessTime());
-                //     }
-                //
-                //     if(entry.getHasLastModifiedDate())
-                //     {
-                //         attr.lastAccessTime(entry.getLastModifiedTime());
-                //     }
-                //
-                //     if(entry.getHasWindowsAttributes())
-                //     {
-                //         attr.windowsAttr(entry.getWindowsAttributes());
-                //     }
-                //
-                //     if(entry.isAntiItem())
-                //     {
-                //         attr.antiItem();
-                //     }
-                //
-                //     if(entry.getHasCrc())
-                //     {
-                //         attr.crc(entry.getCrcValue());
-                //     }
-                //
-                //     attr.size(entry.getSize());
-                //
-                //
-                //     dirScanner.filterFile(displayPath.resolve(entryPath),
-                //                           () -> zipFile.getInputStream(entry),
-                //                           attr);
-                // }
             }
         }
     }

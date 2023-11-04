@@ -35,7 +35,9 @@ public abstract class RandomAccessArchiveExtractor extends ArchiveExtractor
 
     protected abstract void extract(JWalkerOperation operation,
                                     Path fsPath,
-                                    Path displayPath) throws IOException, ArchiveSkipException;
+                                    Path displayPath,
+                                    FileAttributes archiveAttr)
+                                    throws IOException, ArchiveSkipException;
 
     @Override
     public void extract(JWalkerOperation operation,
@@ -43,7 +45,7 @@ public abstract class RandomAccessArchiveExtractor extends ArchiveExtractor
                         Path fsPath,
                         Path displayPath,
                         JWalker.InputSupplier input,
-                        FileAttributes archiveAttr)// unused
+                        FileAttributes archiveAttr)
         throws ArchiveSkipException
     {
         log.debug("Extracting random access archive '{}'", displayPath);
@@ -55,7 +57,7 @@ public abstract class RandomAccessArchiveExtractor extends ArchiveExtractor
                 try
                 {
                     IOUtils.copy(input.get(), Files.newOutputStream(tmpPath));
-                    extract(operation, tmpPath, displayPath);
+                    extract(operation, tmpPath, displayPath, archiveAttr);
                 }
                 finally
                 {
@@ -64,12 +66,15 @@ public abstract class RandomAccessArchiveExtractor extends ArchiveExtractor
             }
             else
             {
-                extract(operation, fsPath, displayPath);
+                extract(operation, fsPath, displayPath, archiveAttr);
             }
         }
         catch(IOException e)
         {
-            operation.error("Could not extract archive '" + displayPath + "': " + e.getMessage(), e);
+            operation.error(displayPath,
+                            archiveAttr,
+                            "Could not extract archive '" + displayPath + "': " + e.getMessage(),
+                            e);
             throw new ArchiveSkipException(e);
         }
     }

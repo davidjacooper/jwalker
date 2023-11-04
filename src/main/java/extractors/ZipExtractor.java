@@ -32,7 +32,8 @@ public class ZipExtractor extends RandomAccessArchiveExtractor
     @Override
     protected void extract(JWalkerOperation operation,
                            Path fsPath,
-                           Path displayPath) throws IOException
+                           Path displayPath,
+                           FileAttributes archiveAttr) throws IOException
     {
         log.debug("Reading ZIP archive '{}'", displayPath);
         try(var zipFile = new ZipFile(fsPath.toFile()))
@@ -45,6 +46,8 @@ public class ZipExtractor extends RandomAccessArchiveExtractor
                 log.debug("File in .zip: {}", entryPath);
 
                 var attr = new FileAttributes();
+                attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.ZIP);
+
                 if(entry.getPlatform() == ZipArchiveEntry.PLATFORM_UNIX)
                 {
                     attr.put(FileAttributes.MODE, entry.getUnixMode());
@@ -71,7 +74,7 @@ public class ZipExtractor extends RandomAccessArchiveExtractor
                 }
                 attr.put(FileAttributes.TYPE, type);
 
-                // TODO: There is other metadata available too.
+                // TODO: other metadata?
 
                 operation.filterFile(displayPath.resolve(entryPath),
                                      () -> zipFile.getInputStream(entry),

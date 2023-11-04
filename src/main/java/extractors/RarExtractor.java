@@ -33,7 +33,8 @@ public class RarExtractor extends RandomAccessArchiveExtractor
     @Override
     protected void extract(JWalkerOperation operation,
                            Path fsPath,
-                           Path displayPath) throws IOException, ArchiveSkipException
+                           Path displayPath,
+                           FileAttributes archiveAttr) throws IOException, ArchiveSkipException
     {
         log.debug("Reading RAR archive '{}'", displayPath);
         var tmpPath = Files.createTempDirectory("jwalker");
@@ -56,6 +57,8 @@ public class RarExtractor extends RandomAccessArchiveExtractor
                 if(!proc.waitFor(UNRAR_COMMAND_TIMEOUT, TimeUnit.SECONDS))
                 {
                     operation.error(
+                        displayPath,
+                        archiveAttr,
                         String.format(
                               "Couldn't read archive file '%s': unrar command timed out",
                               displayPath),
@@ -75,6 +78,7 @@ public class RarExtractor extends RandomAccessArchiveExtractor
                 (entryPath, basicAttr) ->
                 {
                     var attr = new FileAttributes();
+                    attr.put(FileAttributes.ARCHIVE, FileAttributes.Archive.RAR);
                     attr.put(FileAttributes.SIZE, basicAttr.size());
                     attr.put(FileAttributes.LAST_MODIFIED_TIME, basicAttr.lastModifiedTime());
 
