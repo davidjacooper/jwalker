@@ -1,4 +1,5 @@
-package au.djac.jdirscanner;
+package au.djac.jwalker.extractors;
+import au.djac.jwalker.*;
 
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -26,17 +27,23 @@ public abstract class RandomAccessArchiveExtractor extends ArchiveExtractor
         return Set.of(getExtension());
     }
 
-    protected abstract void extract(JDirScanner dirScanner,
+    @Override
+    public FileAttributes.Type getModifiedFileType()
+    {
+        return FileAttributes.Type.ARCHIVE;
+    }
+
+    protected abstract void extract(JWalkerOperation operation,
                                     Path fsPath,
                                     Path displayPath) throws IOException, ArchiveSkipException;
 
     @Override
-    public void extract(JDirScanner dirScanner,
+    public void extract(JWalkerOperation operation,
                         String extension, // unused
                         Path fsPath,
                         Path displayPath,
-                        InputSupplier input,
-                        Map<String,String> archiveMetadata)// unused
+                        JWalker.InputSupplier input,
+                        FileAttributes archiveAttr)// unused
         throws ArchiveSkipException
     {
         log.debug("Extracting random access archive '{}'", displayPath);
@@ -44,11 +51,11 @@ public abstract class RandomAccessArchiveExtractor extends ArchiveExtractor
         {
             if(fsPath == null)
             {
-                var tmpPath = Files.createTempFile("jdirscanner", "." + getExtension());
+                var tmpPath = Files.createTempFile("jwalker", "." + getExtension());
                 try
                 {
                     IOUtils.copy(input.get(), Files.newOutputStream(tmpPath));
-                    extract(dirScanner, tmpPath, displayPath);
+                    extract(operation, tmpPath, displayPath);
                 }
                 finally
                 {
@@ -57,12 +64,12 @@ public abstract class RandomAccessArchiveExtractor extends ArchiveExtractor
             }
             else
             {
-                extract(dirScanner, fsPath, displayPath);
+                extract(operation, fsPath, displayPath);
             }
         }
         catch(IOException e)
         {
-            dirScanner.error("Could not extract archive '" + displayPath + "': " + e.getMessage(), e);
+            operation.error("Could not extract archive '" + displayPath + "': " + e.getMessage(), e);
             throw new ArchiveSkipException(e);
         }
     }

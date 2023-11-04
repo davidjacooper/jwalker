@@ -1,4 +1,4 @@
-package au.djac.jdirscanner;
+package au.djac.jwalker;
 
 public class ArchiveSkipException extends Exception
 {

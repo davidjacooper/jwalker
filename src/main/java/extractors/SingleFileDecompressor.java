@@ -1,4 +1,5 @@
-package au.djac.jdirscanner;
+package au.djac.jwalker.extractors;
+import au.djac.jwalker.*;
 
 import org.apache.commons.compress.compressors.*;
 
@@ -78,14 +79,19 @@ public class SingleFileDecompressor extends ArchiveExtractor
         return extensionMap.keySet();
     }
 
+    @Override
+    public FileAttributes.Type getModifiedFileType()
+    {
+        return FileAttributes.Type.COMPRESSED_FILE;
+    }
 
     @Override
-    public void extract(JDirScanner dirScanner,
+    public void extract(JWalkerOperation operation,
                         String extension,
                         Path fsPath,
                         Path displayPath,
-                        InputSupplier input,
-                        Map<String,String> archiveMetadata) throws ArchiveSkipException
+                        JWalker.InputSupplier input,
+                        FileAttributes attr) throws ArchiveSkipException
     {
         log.debug("Decompressing file '{}'", displayPath);
         try
@@ -128,7 +134,12 @@ public class SingleFileDecompressor extends ArchiveExtractor
                 inputStream = factory.createCompressorInputStream(compressor, bufIn);
             }
 
-            dirScanner.filterFile(
+            // Inherit the metadata of the compressed file, except of course changing it to a
+            // regular file. (These compression schemes don't really add any useful metadata of
+            // their own.)
+            attr.put(FileAttributes.TYPE, FileAttributes.Type.REGULAR_FILE);
+
+            operation.filterFile(
                 // No filesystem path available.
                 null,
 
@@ -139,14 +150,11 @@ public class SingleFileDecompressor extends ArchiveExtractor
                 displayPath,
 
                 () -> inputStream,
-
-                // Inherit the metadata of the compressed file. (These compression schemes don't
-                // really add any useful metadata of their own.)
-                archiveMetadata);
+                attr);
         }
         catch(CompressorException | IOException e)
         {
-            dirScanner.error(
+            operation.error(
                 "Could not decompress file '" + displayPath + "': " + e.getMessage(),
                 e);
             throw new ArchiveSkipException(e);

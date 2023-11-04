@@ -1,4 +1,5 @@
-package au.djac.jdirscanner;
+package au.djac.jwalker.extractors;
+import au.djac.jwalker.*;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -30,12 +31,12 @@ public class RarExtractor extends RandomAccessArchiveExtractor
     }
 
     @Override
-    protected void extract(JDirScanner dirScanner,
+    protected void extract(JWalkerOperation operation,
                            Path fsPath,
                            Path displayPath) throws IOException, ArchiveSkipException
     {
         log.debug("Reading RAR archive '{}'", displayPath);
-        var tmpPath = Files.createTempDirectory("jdirscanner");
+        var tmpPath = Files.createTempDirectory("jwalker");
         try
         {
             var unrarArg = fsPath.toAbsolutePath().toString();
@@ -45,7 +46,7 @@ public class RarExtractor extends RandomAccessArchiveExtractor
                 .start();
 
             // FIXME?: not sure how to grab all command-output *and* timeout after a period of
-            // time. Might need
+            // time. Might need threads...
             String output = IOUtils.toString(proc.getInputStream(), Charset.defaultCharset());
 
             log.debug(output);
@@ -54,7 +55,7 @@ public class RarExtractor extends RandomAccessArchiveExtractor
             {
                 if(!proc.waitFor(UNRAR_COMMAND_TIMEOUT, TimeUnit.SECONDS))
                 {
-                    dirScanner.error(
+                    operation.error(
                         String.format(
                               "Couldn't read archive file '%s': unrar command timed out",
                               displayPath),
@@ -68,7 +69,32 @@ public class RarExtractor extends RandomAccessArchiveExtractor
             catch(InterruptedException e) { throw new AssertionError(); }
 
             // Walk directory tree
-            dirScanner.walkTree(tmpPath, displayPath);
+            operation.walkTree(
+                tmpPath,
+                displayPath,
+                (entryPath, basicAttr) ->
+                {
+                    var attr = new FileAttributes();
+                    attr.put(FileAttributes.SIZE, basicAttr.size());
+                    attr.put(FileAttributes.LAST_MODIFIED_TIME, basicAttr.lastModifiedTime());
+
+                    FileAttributes.Type type = null;
+                    if(basicAttr.isRegularFile())
+                    {
+                        type = FileAttributes.Type.REGULAR_FILE;
+                    }
+                    else if(basicAttr.isDirectory())
+                    {
+                        type = FileAttributes.Type.DIRECTORY;
+                    }
+                    else if(basicAttr.isSymbolicLink())
+                    {
+                        type = FileAttributes.Type.SYMBOLIC_LINK;
+                    }
+                    attr.put(FileAttributes.TYPE, type);
+
+                    return attr;
+                });
 
         }
         finally

@@ -3,6 +3,8 @@ plugins {
     id 'groovy'
 }
 
+version = '1.0.0'
+
 repositories {
     mavenCentral()
 }
@@ -32,6 +34,10 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(11)
     }
+}
+
+compileJava {
+    options.compilerArgs << "-Xlint:all,-serial"
 }
 
 tasks.named('test') {

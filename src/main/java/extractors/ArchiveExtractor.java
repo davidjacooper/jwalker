@@ -1,4 +1,5 @@
-package au.djac.jdirscanner;
+package au.djac.jwalker.extractors;
+import au.djac.jwalker.*;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -35,10 +36,11 @@ public abstract class ArchiveExtractor
     protected static final String ARCHIVE_DIRECTORY_SEPARATOR = "/";
 
     public abstract Set<String> getFileExtensions();
-    public abstract void extract(JDirScanner dirScanner,
+    public abstract FileAttributes.Type getModifiedFileType();
+    public abstract void extract(JWalkerOperation operation,
                                  String extension,
                                  Path fsPath,
                                  Path displayPath,
-                                 InputSupplier input,
-                                 Map<String,String> archiveMetadata) throws ArchiveSkipException;
+                                 JWalker.InputSupplier input,
+                                 FileAttributes archiveAttr) throws ArchiveSkipException;
 }

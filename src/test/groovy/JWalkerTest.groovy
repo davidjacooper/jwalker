@@ -1,4 +1,4 @@
-package au.djac.jdirscanner
+package au.djac.jwalker
 
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.IOUtils
@@ -8,13 +8,16 @@ import java.nio.file.*
 
 import spock.lang.*
 
-class JDirScannerTest extends Specification
+// TODO:
+// - test attributes
+
+class JWalkerTest extends Specification
 {
     private Path tempDir
 
     def setup()
     {
-        tempDir = Files.createTempDirectory("JDirScannerTest")
+        tempDir = Files.createTempDirectory("jwalkertest")
     }
 
     private void createFiles(Path dir, Map<String,Object> testStructure)
@@ -68,15 +71,14 @@ class JDirScannerTest extends Specification
             ])
 
         when:
-            def opts = new JDirScannerOptions()
-            inclusions.forEach { opts.addInclusion(it) }
-            exclusions.forEach { opts.addExclusion(it) }
+            def scanner = new JWalker()
+            inclusions.forEach { scanner.include(it) }
+            exclusions.forEach { scanner.exclude(it) }
 
-            def scanner = new JDirScanner(opts)
             def actualFiles = []
 
-            scanner.forEachFile(tempDir) {
-                displayPath, input, fileMetadata ->
+            scanner.walk(tempDir) {
+                displayPath, input, attr ->
                 actualFiles.add(displayPath.toString())
             }
 
@@ -203,10 +205,9 @@ class JDirScannerTest extends Specification
                 )
             }
 
-            def scanner = new JDirScanner(new JDirScannerOptions());
             def files = [:]
-            scanner.forEachFile(tempDir) {
-                displayPath, input, fileMetadata ->
+            new JWalker().walk(tempDir) {
+                displayPath, input, attr ->
 
                 files[displayPath.toString()] = IOUtils.toString(input.get(), StandardCharsets.UTF_8)
             }
