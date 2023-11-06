@@ -1,8 +1,10 @@
 plugins {
     id 'java-library'
     id 'groovy'
+    id 'maven-publish'
 }
 
+group = 'au.djac'
 version = '1.0.0'
 
 repositories {
@@ -34,6 +36,8 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(11)
     }
+    withJavadocJar()
+    withSourcesJar()
 }
 
 compileJava {
@@ -42,4 +46,52 @@ compileJava {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+javadoc {
+    options {
+        links 'https://docs.oracle.com/en/java/javase/11/docs/api/'
+    }
+}
+
+publishing {
+    publications {
+        JWalkerLibrary(MavenPublication) {
+            from components.java
+
+            pom {
+                name = 'JWalker'
+                description = 'A library for traversing directory trees, while transparently recursing into archives'
+                url = 'https://github.com/davidjacooper/jwalker'
+
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'http://www.opensource.org/licenses/mit-license.php'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'djac'
+                        name = 'David J A Cooper'
+                        email = 'david.cooper+jwalker@djac.au'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/davidjacooper/jwalker.git'
+                    developerConnection = 'scm:git:ssh://github.com/davidjacooper/jwalker.git'
+                    url = 'https://github.com/davidjacooper/jwalker'
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'localRepo'
+            url = layout.buildDirectory.dir('repo')
+        }
+    }
 }
