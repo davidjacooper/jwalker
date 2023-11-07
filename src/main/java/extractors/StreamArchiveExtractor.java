@@ -95,196 +95,212 @@ public class StreamArchiveExtractor extends ArchiveExtractor
             ArchiveEntry entry;
             while((entry = ais.getNextEntry()) != null)
             {
-                if(!entry.isDirectory())
+                // if(!entry.isDirectory())
+                // {
+                    // if(!ais.canReadEntryData(entry))
+                    // {
+                    //     // FIXME: permit unreadable entries. (What happens if we actually try
+                    //     // reading from 'ais'??)
+                    //
+                    //     log.warn("Couldn't read entry '{}' from archive '{}'", displayPath, entry);
+                    //     operation.error(
+                    //         displayPath,
+                    //         archiveAttr,
+                    //         String.format(
+                    //             "Couldn't read archive entry '%s' from archive file '%s'",
+                    //             entry.getName(), displayPath),
+                    //         null
+                    //     );
+                    // }
+
+                var entryPath = Path.of("", entry.getName().split(ARCHIVE_DIRECTORY_SEPARATOR));
+                log.debug("File in archive: {}", entryPath);
+
+
+                var attr = new FileAttributes();
+                var type = FileAttributes.Type.REGULAR_FILE;
+
+                attr.put(FileAttributes.LAST_MODIFIED_TIME, FileTime.from(entry.getLastModifiedDate().toInstant()));
+                attr.put(FileAttributes.SIZE,               entry.getSize());
+
+                if(entry instanceof ArArchiveEntry)
                 {
-                    if(!ais.canReadEntryData(entry))
+                    // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/ar/ArArchiveEntry.html
+                    var arEntry = (ArArchiveEntry) entry;
+                    attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.AR);
+                    attr.put(FileAttributes.GROUP_ID, (long)arEntry.getGroupId());
+                    attr.put(FileAttributes.USER_ID,  (long)arEntry.getUserId());
+                    attr.put(FileAttributes.MODE,     arEntry.getMode());
+                    if(arEntry.isDirectory())
                     {
-                        log.warn("Couldn't read entry '{}' from archive '{}'", displayPath, entry);
-                        operation.error(
-                            displayPath,
-                            archiveAttr,
-                            String.format(
-                                "Couldn't read archive entry '%s' from archive file '%s'",
-                                entry.getName(), displayPath),
-                            null
-                        );
+                        type = FileAttributes.Type.DIRECTORY;
                     }
-
-                    var entryPath = Path.of("", entry.getName().split(ARCHIVE_DIRECTORY_SEPARATOR));
-                    log.debug("File in archive: {}", entryPath);
-
-
-                    var attr = new FileAttributes();
-                    var type = FileAttributes.Type.REGULAR_FILE;
-
-                    attr.put(FileAttributes.LAST_MODIFIED_TIME, FileTime.from(entry.getLastModifiedDate().toInstant()));
-                    attr.put(FileAttributes.SIZE,               entry.getSize());
-
-                    if(entry instanceof ArArchiveEntry)
+                }
+                else if(entry instanceof ArjArchiveEntry)
+                {
+                    // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/arj/ArjArchiveEntry.html
+                    var arjEntry = (ArjArchiveEntry) entry;
+                    attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.ARJ);
+                    attr.put(FileAttributes.ARJ_PLATFORM_CODE, arjEntry.getHostOs());
+                    if(arjEntry.isHostOsUnix())
                     {
-                        // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/ar/ArArchiveEntry.html
-                        var arEntry = (ArArchiveEntry) entry;
-                        attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.AR);
-                        attr.put(FileAttributes.GROUP_ID, (long)arEntry.getGroupId());
-                        attr.put(FileAttributes.USER_ID,  (long)arEntry.getUserId());
-                        attr.put(FileAttributes.MODE,     arEntry.getMode());
-                        if(arEntry.isDirectory())
-                        {
-                            type = FileAttributes.Type.DIRECTORY;
-                        }
+                        attr.put(FileAttributes.MODE, arjEntry.getUnixMode());
                     }
-                    else if(entry instanceof ArjArchiveEntry)
+                    if(arjEntry.isDirectory())
                     {
-                        // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/arj/ArjArchiveEntry.html
-                        var arjEntry = (ArjArchiveEntry) entry;
-                        attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.ARJ);
-                        attr.put(FileAttributes.ARJ_PLATFORM_CODE, arjEntry.getHostOs());
-                        if(arjEntry.isHostOsUnix())
-                        {
-                            attr.put(FileAttributes.MODE, arjEntry.getUnixMode());
-                        }
-                        if(arjEntry.isDirectory())
-                        {
-                            type = FileAttributes.Type.DIRECTORY;
-                        }
+                        type = FileAttributes.Type.DIRECTORY;
                     }
-                    else if(entry instanceof CpioArchiveEntry)
+                }
+                else if(entry instanceof CpioArchiveEntry)
+                {
+                    // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/cpio/CpioArchiveEntry.html
+                    var cpioEntry = (CpioArchiveEntry) entry;
+
+                    attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.CPIO);
+                    attr.put(FileAttributes.GROUP_ID, cpioEntry.getGID());
+                    attr.put(FileAttributes.USER_ID,  cpioEntry.getUID());
+
+                    // The .cpio format's 'mode' field has bits representing the file type.
+                    attr.put(FileAttributes.MODE, (int)(cpioEntry.getMode() & ~CpioConstants.S_IFMT));
+
+                    if(cpioEntry.isRegularFile())
                     {
-                        // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/cpio/CpioArchiveEntry.html
-                        var cpioEntry = (CpioArchiveEntry) entry;
-
-                        attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.CPIO);
-                        attr.put(FileAttributes.GROUP_ID, cpioEntry.getGID());
-                        attr.put(FileAttributes.USER_ID,  cpioEntry.getUID());
-
-                        // The .cpio format's 'mode' field has bits representing the file type.
-                        attr.put(FileAttributes.MODE, (int)(cpioEntry.getMode() & ~CpioConstants.S_IFMT));
-
-                        if(cpioEntry.isRegularFile())
-                        {
-                            type = FileAttributes.Type.REGULAR_FILE;
-                        }
-                        else if(cpioEntry.isDirectory())
-                        {
-                            type = FileAttributes.Type.DIRECTORY;
-                        }
-                        else if(cpioEntry.isSymbolicLink())
-                        {
-                            type = FileAttributes.Type.SYMBOLIC_LINK;
-                        }
-                        else if(cpioEntry.isBlockDevice())
-                        {
-                            type = FileAttributes.Type.BLOCK_DEVICE;
-                        }
-                        else if(cpioEntry.isCharacterDevice())
-                        {
-                            type = FileAttributes.Type.CHARACTER_DEVICE;
-                        }
-                        else if(cpioEntry.isNetwork())
-                        {
-                            type = FileAttributes.Type.NETWORK;
-                        }
-                        else if(cpioEntry.isPipe())
-                        {
-                            type = FileAttributes.Type.FIFO;
-                        }
-                        else if(cpioEntry.isSocket())
-                        {
-                            type = FileAttributes.Type.SOCKET;
-                        }
-                        else
-                        {
-                            type = null;
-                        }
-
-                        // TODO: other technical metadata?
+                        type = FileAttributes.Type.REGULAR_FILE;
                     }
-                    else if(entry instanceof DumpArchiveEntry)
+                    else if(cpioEntry.isDirectory())
                     {
-                        // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/dump/DumpArchiveEntry.html
-                        var dumpEntry = (DumpArchiveEntry) entry;
-
-                        attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.DUMP);
-                        var ctime = dumpEntry.getCreationTime();
-                        if(ctime != null)
-                        {
-                            attr.put(FileAttributes.CREATION_TIME, FileTime.from(ctime.toInstant()));
-                        }
-
-                        var atime = dumpEntry.getAccessTime();
-                        if(atime != null)
-                        {
-                            attr.put(FileAttributes.LAST_ACCESS_TIME, FileTime.from(atime.toInstant()));
-                        }
-
-                        attr.put(FileAttributes.GROUP_ID, (long)dumpEntry.getGroupId());
-                        attr.put(FileAttributes.USER_ID,  (long)dumpEntry.getUserId());
-                        attr.put(FileAttributes.MODE,     dumpEntry.getMode());
-
-                        type = DUMP_TYPE_MAP.get(dumpEntry.getType());
-
-                        // Other metadata available, including UNIX permissions and file type.
+                        type = FileAttributes.Type.DIRECTORY;
                     }
-                    else if(entry instanceof TarArchiveEntry)
+                    else if(cpioEntry.isSymbolicLink())
                     {
-                        // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/tar/TarArchiveEntry.html
-
-                        var tarEntry = (TarArchiveEntry) entry;
-
-                        attr.put(FileAttributes.ARCHIVE,          FileAttributes.Archive.TAR);
-                        attr.put(FileAttributes.GROUP_ID,         tarEntry.getLongGroupId());
-                        attr.put(FileAttributes.GROUP_NAME,       tarEntry.getGroupName());
-                        attr.put(FileAttributes.USER_ID,          tarEntry.getLongUserId());
-                        attr.put(FileAttributes.USER_NAME,        tarEntry.getUserName());
-                        attr.put(FileAttributes.MODE,             tarEntry.getMode());
-                        attr.put(FileAttributes.CREATION_TIME,    tarEntry.getCreationTime());
-                        attr.put(FileAttributes.LAST_ACCESS_TIME, tarEntry.getLastAccessTime());
-
-                        if(tarEntry.isFile())
-                        {
-                            type = FileAttributes.Type.REGULAR_FILE;
-                        }
-                        else if(tarEntry.isDirectory())
-                        {
-                            type = FileAttributes.Type.DIRECTORY;
-                        }
-                        else if(tarEntry.isSymbolicLink()) // "isLink()"??
-                        {
-                            type = FileAttributes.Type.SYMBOLIC_LINK;
-                        }
-                        else if(tarEntry.isBlockDevice())
-                        {
-                            type = FileAttributes.Type.BLOCK_DEVICE;
-                        }
-                        else if(tarEntry.isCharacterDevice())
-                        {
-                            type = FileAttributes.Type.CHARACTER_DEVICE;
-                        }
-                        else if(tarEntry.isFIFO())
-                        {
-                            type = FileAttributes.Type.FIFO;
-                        }
-                        else if(tarEntry.isLink())
-                        {
-                            type = FileAttributes.Type.HARD_LINK;
-                        }
-                        else
-                        {
-                            type = null;
-                        }
+                        type = FileAttributes.Type.SYMBOLIC_LINK;
+                    }
+                    else if(cpioEntry.isBlockDevice())
+                    {
+                        type = FileAttributes.Type.BLOCK_DEVICE;
+                    }
+                    else if(cpioEntry.isCharacterDevice())
+                    {
+                        type = FileAttributes.Type.CHARACTER_DEVICE;
+                    }
+                    else if(cpioEntry.isNetwork())
+                    {
+                        type = FileAttributes.Type.NETWORK;
+                    }
+                    else if(cpioEntry.isPipe())
+                    {
+                        type = FileAttributes.Type.FIFO;
+                    }
+                    else if(cpioEntry.isSocket())
+                    {
+                        type = FileAttributes.Type.SOCKET;
                     }
                     else
                     {
-                        // Theoretically not possible, but just in case...
-                        attr.put(FileAttributes.ARCHIVE, FileAttributes.Archive.UNKNOWN);
+                        type = null;
                     }
 
-                    attr.put(FileAttributes.TYPE, type);
-
-                    operation.filterFile(displayPath.resolve(entryPath),
-                                         () -> ais,
-                                         attr);
+                    // TODO: other technical metadata?
                 }
+                else if(entry instanceof DumpArchiveEntry)
+                {
+                    // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/dump/DumpArchiveEntry.html
+                    var dumpEntry = (DumpArchiveEntry) entry;
+
+                    attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.DUMP);
+                    var ctime = dumpEntry.getCreationTime();
+                    if(ctime != null)
+                    {
+                        attr.put(FileAttributes.CREATION_TIME, FileTime.from(ctime.toInstant()));
+                    }
+
+                    var atime = dumpEntry.getAccessTime();
+                    if(atime != null)
+                    {
+                        attr.put(FileAttributes.LAST_ACCESS_TIME, FileTime.from(atime.toInstant()));
+                    }
+
+                    attr.put(FileAttributes.GROUP_ID, (long)dumpEntry.getGroupId());
+                    attr.put(FileAttributes.USER_ID,  (long)dumpEntry.getUserId());
+                    attr.put(FileAttributes.MODE,     dumpEntry.getMode());
+
+                    type = DUMP_TYPE_MAP.get(dumpEntry.getType());
+
+                    // Other metadata available, including UNIX permissions and file type.
+                }
+                else if(entry instanceof TarArchiveEntry)
+                {
+                    // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/tar/TarArchiveEntry.html
+
+                    var tarEntry = (TarArchiveEntry) entry;
+
+                    attr.put(FileAttributes.ARCHIVE,          FileAttributes.Archive.TAR);
+                    attr.put(FileAttributes.GROUP_ID,         tarEntry.getLongGroupId());
+                    attr.put(FileAttributes.GROUP_NAME,       tarEntry.getGroupName());
+                    attr.put(FileAttributes.USER_ID,          tarEntry.getLongUserId());
+                    attr.put(FileAttributes.USER_NAME,        tarEntry.getUserName());
+                    attr.put(FileAttributes.MODE,             tarEntry.getMode());
+                    attr.put(FileAttributes.CREATION_TIME,    tarEntry.getCreationTime());
+                    attr.put(FileAttributes.LAST_ACCESS_TIME, tarEntry.getLastAccessTime());
+
+                    if(tarEntry.isFile())
+                    {
+                        type = FileAttributes.Type.REGULAR_FILE;
+                    }
+                    else if(tarEntry.isDirectory())
+                    {
+                        type = FileAttributes.Type.DIRECTORY;
+                    }
+                    else if(tarEntry.isSymbolicLink()) // "isLink()"??
+                    {
+                        type = FileAttributes.Type.SYMBOLIC_LINK;
+                    }
+                    else if(tarEntry.isBlockDevice())
+                    {
+                        type = FileAttributes.Type.BLOCK_DEVICE;
+                    }
+                    else if(tarEntry.isCharacterDevice())
+                    {
+                        type = FileAttributes.Type.CHARACTER_DEVICE;
+                    }
+                    else if(tarEntry.isFIFO())
+                    {
+                        type = FileAttributes.Type.FIFO;
+                    }
+                    else if(tarEntry.isLink())
+                    {
+                        type = FileAttributes.Type.HARD_LINK;
+                    }
+                    else
+                    {
+                        type = null;
+                    }
+                }
+                else
+                {
+                    // Theoretically not possible, but just in case...
+                    attr.put(FileAttributes.ARCHIVE, FileAttributes.Archive.UNKNOWN);
+                }
+
+                attr.put(FileAttributes.TYPE, type);
+
+                JWalker.InputSupplier entryInput;
+                if(ais.canReadEntryData(entry))
+                {
+                    entryInput = () -> ais;
+                }
+                else
+                {
+                    log.warn("Couldn't read '{}' from archive '{}'", entryPath, displayPath);
+                    entryInput = () -> {
+                        throw new IOException(String.format(
+                            "Couldn't read archive entry '%s' from archive file '%s'",
+                            entryPath, displayPath));
+                    };
+                }
+
+                operation.filterFile(displayPath.resolve(entryPath), entryInput, attr);
+                // }
             }
         }
         catch(ArchiveException | IOException e)

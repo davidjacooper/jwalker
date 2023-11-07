@@ -31,40 +31,67 @@ public class JWalker
     }
 
 
-    private int maxDepth = Integer.MAX_VALUE; // TBD: equivalent to Files.walkFileTree
+    private int maxDepth = Integer.MAX_VALUE;
     private boolean recurseIntoArchives = true;
     private boolean followLinks = false;      // TBD: whether the follow FS symlinks. (We're not going to follow links within archives.)
     private boolean unixAttributes = true;
-    private Set<FileAttributes.Type> fileTypes = new HashSet<>(Set.of(FileAttributes.Type.REGULAR_FILE));
 
     private List<PathMatcher> inclusions = new ArrayList<>();
     private List<PathMatcher> exclusions = new ArrayList<>();
-
-    private Set<Class<? extends ArchiveExtractor>> archiveExtractors = new HashSet<>(Set.of(
-        RarExtractor.class, SevenZExtractor.class, ZipExtractor.class,
-        StreamArchiveExtractor.class, SingleFileDecompressor.class
-    ));
-
+    private Set<FileAttributes.Type> fileTypes = null;
+    private Set<ArchiveExtractor> extractors = null;
     private Map<String,ArchiveExtractor> extractorMap = null;
 
     public JWalker() {}
 
+    /**
+     * Traverses the file tree, beginning at a specified path, providing each directory entry
+     * (subject to inclusion/exclusion criteria) to a given callback, and diverting any errors to
+     * a given error handler.
+     *
+     * @param rootPath The top-most path at which to start walking. If this is a directory or
+     * archive file, its contents will be traversed. If it is a regular file, it will be the sole
+     * result of the 'traversal'.
+     * @param fileConsumer Receives each file entry (subject to inclusion/exclusion criteria).
+     * @param errorHandler Receives each error as it happens. The error handler can choose to
+     * throw any subclass of {@link RuntimeException}, aborting the traversal, or not, in which case
+     * the traversal will continue.
+     */
     public void walk(Path rootPath, FileConsumer fileConsumer, ErrorHandler errorHandler)
     {
-        new JWalkerOperation(this, fileConsumer, errorHandler).walk(rootPath);
+        new JWalkerOperation(this, fileConsumer, errorHandler).walkTree(rootPath);
     }
 
+    /**
+     * Traverses the file tree, beginning at a specified path, and providing each directory entry
+     * (subject to inclusion/exclusion criteria) to a given callback.
+     *
+     * This is equivalent to the three-parameter version, where the error handler simply throws
+     * {@link JWalkerException} on any error.
+     *
+     * @param rootPath The top-most path at which to start walking. If this is a directory or
+     * archive file, its contents will be traversed. If it is a regular file, it will be the sole
+     * result of the 'traversal'.
+     * @param fileConsumer Receives each file entry (subject to inclusion/exclusion criteria).
+     */
     public void walk(Path rootPath, FileConsumer fileConsumer)
     {
         walk(rootPath, fileConsumer, (path, attr, msg, ex) -> { throw new JWalkerException(msg, ex); });
     }
 
+    // TBD
     public JWalker maxDepth(int d)
     {
         maxDepth = d;
         return this;
     }
 
+    /**
+     * Specifies whether to include the contents of archive files (true by default).
+     *
+     * @param b If true (the default), archive files are treated like directories. If false, they
+     * are treated as regular files.
+     */
     public JWalker recurseIntoArchives(boolean b)
     {
         recurseIntoArchives = b;
@@ -83,24 +110,56 @@ public class JWalker
         return this;
     }
 
-    public JWalker fileTypes(FileAttributes.Type... fileTypes)
+    private void initFileTypes()
     {
-        this.fileTypes.clear();
-        for(var t : fileTypes)
+        if(this.fileTypes == null)
+        {
+            this.fileTypes = new HashSet<>();
+        }
+    }
+
+    public JWalker fileTypes(FileAttributes.Type... newFileTypes)
+    {
+        initFileTypes();
+        for(var t : newFileTypes)
         {
             this.fileTypes.add(t);
         }
         return this;
     }
 
-    public JWalker fileTypes(Iterable<FileAttributes.Type> fileTypes)
+    public JWalker fileTypes(Iterable<FileAttributes.Type> newFileTypes)
     {
-        this.fileTypes.clear();
-        for(var t : fileTypes)
-        {
-            this.fileTypes.add(t);
-        }
+        initFileTypes();
+        newFileTypes.forEach(this.fileTypes::add);
         return this;
+    }
+
+    public Set<FileAttributes.Type> defaultFileTypes()
+    {
+        return Set.of(FileAttributes.Type.REGULAR_FILE);
+    }
+
+    private PathMatcher globMatcher(String globPattern)
+    {
+        var fs = FileSystems.getDefault();
+        var fullPattern = "glob:{**" + fs.getSeparator() + ",}" + globPattern;
+        var wrappedMatcher = fs.getPathMatcher(fullPattern);
+
+        return new PathMatcher()
+        {
+            @Override
+            public boolean matches(Path p)
+            {
+                return wrappedMatcher.matches(p);
+            }
+
+            @Override
+            public String toString()
+            {
+                return fullPattern;
+            }
+        };
     }
 
     public JWalker include(String globPattern)
@@ -127,67 +186,68 @@ public class JWalker
         return this;
     }
 
+    private void initExtractors()
+    {
+        if(this.extractors == null)
+        {
+            this.extractors = new HashSet<>();
+        }
+        extractorMap = null;
+    }
+
+    public JWalker extractWith(ArchiveExtractor... newExtractors)
+    {
+        initExtractors();
+        for(var e : extractors)
+        {
+            this.extractors.add(e);
+        }
+        return this;
+    }
+
+    public JWalker extractWith(Iterable<ArchiveExtractor> newExtractors)
+    {
+        initExtractors();
+        newExtractors.forEach(this.extractors::add);
+        return this;
+    }
+
+    public Set<ArchiveExtractor> defaultExtractors()
+    {
+        return Set.of(
+            new RarExtractor(),
+            new SevenZExtractor(),
+            new SingleFileDecompressor(),
+            new StreamArchiveExtractor(),
+            new ZipExtractor()
+        );
+    }
+
 
     int maxDepth()                 { return maxDepth; }
     boolean recurseIntoArchives()  { return recurseIntoArchives; }
     boolean followLinks()          { return followLinks; }
     boolean unixAttributes()       { return unixAttributes; }
 
-    private FileSystem fs = FileSystems.getDefault();
 
-    private PathMatcher globMatcher(String globPattern)
+    boolean showFileType(FileAttributes.Type type)
     {
-        var fullPattern = "glob:{**" + fs.getSeparator() + ",}" + globPattern;
-        var wrappedMatcher = fs.getPathMatcher(fullPattern);
-
-        return new PathMatcher()
-        {
-            @Override
-            public boolean matches(Path p)
-            {
-                return wrappedMatcher.matches(p);
-            }
-
-            @Override
-            public String toString()
-            {
-                return fullPattern;
-            }
-        };
+        return ((fileTypes == null) ? defaultFileTypes() : fileTypes).contains(type);
     }
 
-    public boolean showFileType(FileAttributes.Type type)
-    {
-        return fileTypes.contains(type);
-    }
+    List<PathMatcher> inclusions() { return inclusions; }
+    List<PathMatcher> exclusions() { return exclusions; }
 
-    public List<PathMatcher> inclusions() { return inclusions; }
-    public List<PathMatcher> exclusions() { return exclusions; }
-
-    public Set<Class<? extends ArchiveExtractor>> archiveExtractors()
-    {
-        return archiveExtractors;
-    }
-
-    public Map<String,ArchiveExtractor> extractorMap()
+    Map<String,ArchiveExtractor> extractorMap()
     {
         if(extractorMap == null)
         {
             extractorMap = new HashMap<>();
-            for(var extractorCls : archiveExtractors)
+            for(var extractor : (extractors == null) ? defaultExtractors() : extractors)
             {
-                try
+                for(var fileExtension : extractor.getFileExtensions())
                 {
-                    var extractor = extractorCls.getConstructor().newInstance();
-                    for(var fileExtension : extractor.getFileExtensions())
-                    {
-                        extractorMap.put(fileExtension, extractor);
-                    }
-                }
-                catch(ReflectiveOperationException e)
-                {
-                    throw new UnsupportedOperationException(
-                        "Could not create extractor " + extractorCls, e);
+                    extractorMap.put(fileExtension, extractor);
                 }
             }
         }

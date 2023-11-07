@@ -255,7 +255,6 @@ public class FileAttributes implements BasicFileAttributes
         attrMap.forEach(action);
     }
 
-
     @Override
     public long size()
     {
@@ -306,5 +305,24 @@ public class FileAttributes implements BasicFileAttributes
     {
         var t = get(TYPE);
         return t != Type.DIRECTORY && t != Type.REGULAR_FILE && t != Type.SYMBOLIC_LINK;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return attrMap.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object other)
+    {
+        if(!(other instanceof FileAttributes)) { return false; }
+        return attrMap.equals(((FileAttributes)other).attrMap);
+    }
+
+    @Override
+    public String toString()
+    {
+        return attrMap.toString();
     }
 }

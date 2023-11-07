@@ -19,28 +19,22 @@ import java.util.function.BiFunction;
  *
  * Some moderately complex recursive calls take place here. Here's an outline of how it goes:
  *
- *   forEachFile()
- *   |
- *   |-- filterFile()
- *   |   |
- *   |   ... (see below)
- *   |or
- *   +-- walkTree()
- *       |
- *       +-- filterFile()
- *           |
- *           +-- ArchiveExtractor.extract()
- *           |   [various implementations]
- *           |   |
- *           |   |-- filterFile()
- *           |   |   |
- *           |   |   ... [recurse]
- *           |   |or
- *           |   +-- walkTree()
- *           |       |
- *           |       ... [recurse]
- *           |
- *           +-- fileConsumer.accept()
+ *  walkTree()
+ *  |
+ *  +-- filterFile()
+ *      |
+ *      +-- ArchiveExtractor.extract()
+ *      |   [various implementations]
+ *      |   |
+ *      |   |-- filterFile()
+ *      |   |   |
+ *      |   |   ... [recurse]
+ *      |   |or
+ *      |   +-- walkTree()
+ *      |       |
+ *      |       ... [recurse]
+ *      |
+ *      +-- fileConsumer.accept()
  */
 public class JWalkerOperation
 {
@@ -50,9 +44,9 @@ public class JWalkerOperation
     private final FileConsumer fileConsumer;
     private final ErrorHandler errorHandler;
     private final LinkOption[] linkOptions;
-
     private final HashSet<Path> excludedSubPaths = new HashSet<>();
     private final HashSet<Path> nonExcludedSubPaths = new HashSet<>();
+    private int rootDepth = 0;
 
     public JWalkerOperation(JWalker options,
                             FileConsumer fileConsumer,
@@ -133,46 +127,6 @@ public class JWalkerOperation
         return attr;
     }
 
-    public void walk(Path rootPath)
-    {
-        if(Files.isDirectory(rootPath))
-        {
-            walkTree(rootPath, Path.of(""), this::extractAttr);
-        }
-        else
-        {
-            // Special case for when the user supplies a single file
-            // representing a whole submission.
-            //
-            // Normally we discard the submission directory name from the path of each file
-            // in that submission (for brevity). We can't really do that in this situation.
-
-            var displayPath = rootPath.getName(rootPath.getNameCount() - 1);
-
-            FileAttributes attr;
-            try
-            {
-                attr = extractAttr(
-                    rootPath,
-                    Files.readAttributes(rootPath, BasicFileAttributes.class, linkOptions));
-            }
-            catch(IOException e)
-            {
-                error(rootPath,
-                      new FileAttributes(),
-                      String.format("Could not read file attributes from '%s'", rootPath),
-                      e);
-                attr = new FileAttributes();
-                attr.put(FileAttributes.TYPE, FileAttributes.Type.REGULAR_FILE);
-            }
-
-            filterFile(rootPath,
-                       displayPath, // matchPath, equal to the displayPath here.
-                       displayPath,
-                       () -> Files.newInputStream(rootPath),
-                       attr);
-        }
-    }
 
     public void error(Path path, FileAttributes attr, String msg, Exception ex)
     {
@@ -181,61 +135,103 @@ public class JWalkerOperation
         errorHandler.error(path, attr, msg, ex);
     }
 
+    public void walkTree(Path rootPath)
+    {
+        rootDepth = rootPath.getNameCount();
+        walkTree(rootPath, rootPath, this::extractAttr);
+    }
+
     public void walkTree(Path fsPath,
                          Path displayPath,
                          BiFunction<Path,BasicFileAttributes,FileAttributes> attrFn)
     {
+        int maxDepth = options.maxDepth();
         try
         {
             Files.walkFileTree(
                 fsPath,
-                new SimpleFileVisitor<>()
+                new FileVisitor<>()
                 {
+                    private int depth = fsPath.getNameCount() - rootDepth;
+
                     @Override
-                    public FileVisitResult preVisitDirectory(Path dirFsPath, BasicFileAttributes attrs)
+                    public FileVisitResult preVisitDirectory(Path entryFsPath, BasicFileAttributes attrs)
                     {
-                        var fileDisplayPath = displayPath.resolve(fsPath.relativize(dirFsPath));
+                        // To get a 'display path' for the file, we:
+                        // (1) relativize() it against the root path, which strips the root path
+                        //     component(s) off.
+                        //
+                        // (2) resolve() it against the root display path, which adds on those
+                        //     component(s), if any.
+                        var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
+
+                        if(depth > maxDepth)
+                        {
+                            log.debug("Directory {} exceeds maxDepth ({})", entryDisplayPath, maxDepth);
+                            return FileVisitResult.SKIP_SUBTREE;
+                        }
+                        depth++;
+
 
                         // Only apply exclusions to directories
                         for(var matcher : options.exclusions())
                         {
-                            if(matcher.matches(dirFsPath))
+                            if(matcher.matches(entryFsPath))
                             {
                                 // Directory matches exclusion pattern; skip the entire branch.
-                                excludedSubPaths.add(fileDisplayPath);
+                                excludedSubPaths.add(entryDisplayPath);
                                 return FileVisitResult.SKIP_SUBTREE;
                             }
                         }
-                        nonExcludedSubPaths.add(fileDisplayPath);
+                        nonExcludedSubPaths.add(entryDisplayPath);
 
-                        filterFile(dirFsPath,
-                                   fileDisplayPath,
-                                   fileDisplayPath,
+                        filterFile(entryFsPath,
+                                   entryDisplayPath,
+                                   entryDisplayPath,
                                    null,
-                                   attrFn.apply(dirFsPath, attrs));
+                                   attrFn.apply(entryFsPath, attrs));
 
                         // Descend into the directory.
                         return FileVisitResult.CONTINUE;
                     }
 
                     @Override
-                    public FileVisitResult visitFile(Path fileFsPath, BasicFileAttributes attrs)
+                    public FileVisitResult postVisitDirectory(Path entryFsPath, IOException e)
                     {
-                        // To get a 'display path' for the file, we:
-                        // (1) relativize() it against the root path, which strips the root path
-                        //     component(s) off. These are assumed to be outside the scope of useful
-                        //     info we want to store in the DB.
-                        //
-                        // (2) resolve() it against the root display path, which adds on those
-                        //     component(s), if any.
-                        var fileDisplayPath = displayPath.resolve(fsPath.relativize(fileFsPath));
+                        depth--;
+                        if(e != null)
+                        {
+                            var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
+                            error(entryDisplayPath,
+                                  new FileAttributes(),
+                                  String.format("Cannot visit directory '%s'", entryDisplayPath),
+                                  e);
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
 
-                        filterFile(fileFsPath,
-                                   fileDisplayPath, // matchPath, equal to the displayPath here.
-                                   fileDisplayPath,
-                                   () -> Files.newInputStream(fileFsPath),
-                                   attrFn.apply(fileFsPath, attrs));
+                    @Override
+                    public FileVisitResult visitFile(Path entryFsPath, BasicFileAttributes attrs)
+                    {
+                        var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
 
+                        filterFile(entryFsPath,
+                                   entryDisplayPath, // matchPath, equal to the displayPath here.
+                                   entryDisplayPath,
+                                   () -> Files.newInputStream(entryFsPath),
+                                   attrFn.apply(entryFsPath, attrs));
+
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path entryFsPath, IOException e)
+                    {
+                        var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
+                        error(entryDisplayPath,
+                              new FileAttributes(),
+                              String.format("Cannot visit file '%s'", entryDisplayPath),
+                              e);
                         return FileVisitResult.CONTINUE;
                     }
                 }
@@ -243,6 +239,8 @@ public class JWalkerOperation
         }
         catch(IOException e)
         {
+            // Theoretically shouldn't happen, because none of the above visitor methods throw
+            // IOException.
             error(displayPath,
                   new FileAttributes(),
                   String.format("Cannot traverse directory tree at '%s'", fsPath),
@@ -283,6 +281,13 @@ public class JWalkerOperation
         log.debug("Filtering fsPath = '{}', matchPath = '{}', displayPath = '{}', exclusions = {}, inclusions = {}",
             fsPath, matchPath, displayPath, exclusions, inclusions);
 
+        int maxDepth = options.maxDepth();
+        if((displayPath.getNameCount() - rootDepth) > maxDepth)
+        {
+            log.debug("File {} exceeds maxDepth ({})", displayPath, maxDepth);
+            return;
+        }
+
         // Check whether every subpath prefix has been excluded.
         //
         // (Files.walkFileTree() already prunes the search for excluded filesystem directories, but
@@ -321,18 +326,6 @@ public class JWalkerOperation
             }
         }
 
-        // for(var matcher : exclusions)
-        // {
-        //     if(matcher.matches(matchPath))
-        //     {
-        //         log.debug("Applying exclusion '{}'", matcher);
-        //         // File matches exclusion pattern, so skip file. That is, don't call
-        //         // the callback. If it's a compressed/archive file, then we won't recurse into it
-        //         // _even if_ 'recurseIntoArchives' is true (consistent with directories).
-        //         return;
-        //     }
-        // }
-
         var type = attr.get(FileAttributes.TYPE);
         ArchiveExtractor extractor = null;
         String ext = null;
@@ -347,8 +340,8 @@ public class JWalkerOperation
                 extractor = options.extractorMap().get(ext.toLowerCase());
                 if(extractor != null)
                 {
-                    // Archive files are _not_ considered "REGULAR_FILE"s for our purposes. We change
-                    // the type to either "ARCHIVE" or "COMPRESSED_FILE".
+                    // Archive files are _not_ considered "REGULAR_FILE"s for our purposes. We
+                    // change the type to either "ARCHIVE" or "COMPRESSED_FILE".
                     type = extractor.getModifiedFileType();
                     attr.put(FileAttributes.TYPE, type);
                 }
