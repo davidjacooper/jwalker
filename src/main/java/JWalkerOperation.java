@@ -145,15 +145,16 @@ public class JWalkerOperation
                          Path displayPath,
                          BiFunction<Path,BasicFileAttributes,FileAttributes> attrFn)
     {
-        int maxDepth = options.maxDepth();
         try
         {
             Files.walkFileTree(
                 fsPath,
+                options.followLinks()
+                    ? Set.of(FileVisitOption.FOLLOW_LINKS)
+                    : Set.of(),
+                options.maxDepth() - (fsPath.getNameCount() - rootDepth),
                 new FileVisitor<>()
                 {
-                    private int depth = fsPath.getNameCount() - rootDepth;
-
                     @Override
                     public FileVisitResult preVisitDirectory(Path entryFsPath, BasicFileAttributes attrs)
                     {
@@ -164,14 +165,6 @@ public class JWalkerOperation
                         // (2) resolve() it against the root display path, which adds on those
                         //     component(s), if any.
                         var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
-
-                        if(depth > maxDepth)
-                        {
-                            log.debug("Directory {} exceeds maxDepth ({})", entryDisplayPath, maxDepth);
-                            return FileVisitResult.SKIP_SUBTREE;
-                        }
-                        depth++;
-
 
                         // Only apply exclusions to directories
                         for(var matcher : options.exclusions())
@@ -198,7 +191,6 @@ public class JWalkerOperation
                     @Override
                     public FileVisitResult postVisitDirectory(Path entryFsPath, IOException e)
                     {
-                        depth--;
                         if(e != null)
                         {
                             var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
@@ -214,7 +206,6 @@ public class JWalkerOperation
                     public FileVisitResult visitFile(Path entryFsPath, BasicFileAttributes attrs)
                     {
                         var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
-
                         filterFile(entryFsPath,
                                    entryDisplayPath, // matchPath, equal to the displayPath here.
                                    entryDisplayPath,
@@ -239,8 +230,7 @@ public class JWalkerOperation
         }
         catch(IOException e)
         {
-            // Theoretically shouldn't happen, because none of the above visitor methods throw
-            // IOException.
+            // Theoretically impossible, since none of the above visitor methods throw IOException.
             error(displayPath,
                   new FileAttributes(),
                   String.format("Cannot traverse directory tree at '%s'", fsPath),
