@@ -1,4 +1,5 @@
 package au.djac.jwalker.extractors;
+import au.djac.jwalker.attr.*;
 import au.djac.jwalker.*;
 
 import java.nio.file.Path;
@@ -36,7 +37,7 @@ public abstract class ArchiveExtractor
     protected static final String ARCHIVE_DIRECTORY_SEPARATOR = "/";
 
     public abstract Set<String> getFileExtensions();
-    public abstract FileAttributes.Type getModifiedFileType();
+    public abstract FileType getModifiedFileType();
     public abstract void extract(JWalkerOperation operation,
                                  String extension,
                                  Path fsPath,

@@ -1,5 +1,6 @@
 package au.djac.jwalker.extractors;
 import au.djac.jwalker.*;
+import au.djac.jwalker.attr.*;
 
 import org.apache.commons.compress.archivers.*;
 import org.apache.commons.compress.archivers.ar.ArArchiveEntry;
@@ -42,19 +43,19 @@ public class StreamArchiveExtractor extends ArchiveExtractor
         "tar",  ArchiveStreamFactory.TAR); // Compressed tars (e.g., tar.gz) are first handled by
                                            // SingleFileDecompressor.
 
-    private static final Map<DumpArchiveEntry.TYPE,FileAttributes.Type> DUMP_TYPE_MAP
+    private static final Map<DumpArchiveEntry.TYPE,FileType> DUMP_TYPE_MAP
         = new EnumMap<>(DumpArchiveEntry.TYPE.class);
     static
     {
-        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.BLKDEV,    FileAttributes.Type.BLOCK_DEVICE);
-        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.CHRDEV,    FileAttributes.Type.CHARACTER_DEVICE);
-        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.DIRECTORY, FileAttributes.Type.DIRECTORY);
-        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.FIFO,      FileAttributes.Type.FIFO);
-        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.FILE,      FileAttributes.Type.REGULAR_FILE);
-        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.LINK,      FileAttributes.Type.SYMBOLIC_LINK);
-        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.SOCKET,    FileAttributes.Type.SOCKET);
+        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.BLKDEV,    FileType.BLOCK_DEVICE);
+        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.CHRDEV,    FileType.CHARACTER_DEVICE);
+        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.DIRECTORY, FileType.DIRECTORY);
+        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.FIFO,      FileType.FIFO);
+        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.FILE,      FileType.REGULAR_FILE);
+        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.LINK,      FileType.SYMBOLIC_LINK);
+        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.SOCKET,    FileType.SOCKET);
         DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.UNKNOWN,   null);
-        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.WHITEOUT,  FileAttributes.Type.WHITEOUT);
+        DUMP_TYPE_MAP.put(DumpArchiveEntry.TYPE.WHITEOUT,  FileType.WHITEOUT);
     }
 
     @Override
@@ -64,9 +65,9 @@ public class StreamArchiveExtractor extends ArchiveExtractor
     }
 
     @Override
-    public FileAttributes.Type getModifiedFileType()
+    public FileType getModifiedFileType()
     {
-        return FileAttributes.Type.ARCHIVE;
+        return FileType.ARCHIVE;
     }
 
     @Override
@@ -95,30 +96,11 @@ public class StreamArchiveExtractor extends ArchiveExtractor
             ArchiveEntry entry;
             while((entry = ais.getNextEntry()) != null)
             {
-                // if(!entry.isDirectory())
-                // {
-                    // if(!ais.canReadEntryData(entry))
-                    // {
-                    //     // FIXME: permit unreadable entries. (What happens if we actually try
-                    //     // reading from 'ais'??)
-                    //
-                    //     log.warn("Couldn't read entry '{}' from archive '{}'", displayPath, entry);
-                    //     operation.error(
-                    //         displayPath,
-                    //         archiveAttr,
-                    //         String.format(
-                    //             "Couldn't read archive entry '%s' from archive file '%s'",
-                    //             entry.getName(), displayPath),
-                    //         null
-                    //     );
-                    // }
-
                 var entryPath = Path.of("", entry.getName().split(ARCHIVE_DIRECTORY_SEPARATOR));
                 log.debug("File in archive: {}", entryPath);
 
-
                 var attr = new FileAttributes();
-                var type = FileAttributes.Type.REGULAR_FILE;
+                var type = FileType.REGULAR_FILE;
 
                 attr.put(FileAttributes.LAST_MODIFIED_TIME, FileTime.from(entry.getLastModifiedDate().toInstant()));
                 attr.put(FileAttributes.SIZE,               entry.getSize());
@@ -127,77 +109,94 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                 {
                     // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/ar/ArArchiveEntry.html
                     var arEntry = (ArArchiveEntry) entry;
-                    attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.AR);
+                    attr.put(FileAttributes.ARCHIVE,  Archive.AR);
                     attr.put(FileAttributes.GROUP_ID, (long)arEntry.getGroupId());
                     attr.put(FileAttributes.USER_ID,  (long)arEntry.getUserId());
-                    attr.put(FileAttributes.MODE,     arEntry.getMode());
+
+                    int mode = arEntry.getMode();
+                    attr.put(FileAttributes.UNIX_PERMISSIONS, UnixPermissions.forMode(mode));
+
+
                     if(arEntry.isDirectory())
                     {
-                        type = FileAttributes.Type.DIRECTORY;
+                        type = FileType.DIRECTORY;
+                    }
+                    else
+                    {
+                        type = FileType.forMode(mode);
                     }
                 }
                 else if(entry instanceof ArjArchiveEntry)
                 {
                     // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/arj/ArjArchiveEntry.html
                     var arjEntry = (ArjArchiveEntry) entry;
-                    attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.ARJ);
-                    attr.put(FileAttributes.ARJ_PLATFORM_CODE, arjEntry.getHostOs());
+                    attr.put(FileAttributes.ARCHIVE, Archive.ARJ);
+                    attr.put(FileAttributes.ARJ_HOST_OS, ArjHostOS.forCode(arjEntry.getHostOs()));
+
                     if(arjEntry.isHostOsUnix())
                     {
-                        attr.put(FileAttributes.MODE, arjEntry.getUnixMode());
+                        attr.put(FileAttributes.UNIX_PERMISSIONS,
+                                 UnixPermissions.forMode(arjEntry.getUnixMode()));
                     }
+
                     if(arjEntry.isDirectory())
                     {
-                        type = FileAttributes.Type.DIRECTORY;
+                        type = FileType.DIRECTORY;
                     }
+
+                    // Note: ARJ does not apparently use the upper 4 bits of the mode for the file
+                    // type, or at least not in the conventional UNIX fashion.
+                    // => _Don't_ call FileType.forMode() to find the file type.
                 }
                 else if(entry instanceof CpioArchiveEntry)
                 {
                     // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/cpio/CpioArchiveEntry.html
                     var cpioEntry = (CpioArchiveEntry) entry;
 
-                    attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.CPIO);
+                    attr.put(FileAttributes.ARCHIVE,  Archive.CPIO);
                     attr.put(FileAttributes.GROUP_ID, cpioEntry.getGID());
                     attr.put(FileAttributes.USER_ID,  cpioEntry.getUID());
 
                     // The .cpio format's 'mode' field has bits representing the file type.
-                    attr.put(FileAttributes.MODE, (int)(cpioEntry.getMode() & ~CpioConstants.S_IFMT));
+                    //attr.put(FileAttributes.MODE, (int)(cpioEntry.getMode() & ~CpioConstants.S_IFMT));
+                    attr.put(FileAttributes.UNIX_PERMISSIONS,
+                             UnixPermissions.forMode((int)cpioEntry.getMode()));
 
                     if(cpioEntry.isRegularFile())
                     {
-                        type = FileAttributes.Type.REGULAR_FILE;
+                        type = FileType.REGULAR_FILE;
                     }
                     else if(cpioEntry.isDirectory())
                     {
-                        type = FileAttributes.Type.DIRECTORY;
+                        type = FileType.DIRECTORY;
                     }
                     else if(cpioEntry.isSymbolicLink())
                     {
-                        type = FileAttributes.Type.SYMBOLIC_LINK;
+                        type = FileType.SYMBOLIC_LINK;
                     }
                     else if(cpioEntry.isBlockDevice())
                     {
-                        type = FileAttributes.Type.BLOCK_DEVICE;
+                        type = FileType.BLOCK_DEVICE;
                     }
                     else if(cpioEntry.isCharacterDevice())
                     {
-                        type = FileAttributes.Type.CHARACTER_DEVICE;
+                        type = FileType.CHARACTER_DEVICE;
                     }
                     else if(cpioEntry.isNetwork())
                     {
-                        type = FileAttributes.Type.NETWORK;
+                        type = FileType.NETWORK;
                     }
                     else if(cpioEntry.isPipe())
                     {
-                        type = FileAttributes.Type.FIFO;
+                        type = FileType.FIFO;
                     }
                     else if(cpioEntry.isSocket())
                     {
-                        type = FileAttributes.Type.SOCKET;
+                        type = FileType.SOCKET;
                     }
                     else
                     {
-                        type = null;
+                        type = FileType.UNKNOWN;
                     }
 
                     // TODO: other technical metadata?
@@ -207,7 +206,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                     // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/dump/DumpArchiveEntry.html
                     var dumpEntry = (DumpArchiveEntry) entry;
 
-                    attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.DUMP);
+                    attr.put(FileAttributes.ARCHIVE, Archive.DUMP);
                     var ctime = dumpEntry.getCreationTime();
                     if(ctime != null)
                     {
@@ -222,7 +221,8 @@ public class StreamArchiveExtractor extends ArchiveExtractor
 
                     attr.put(FileAttributes.GROUP_ID, (long)dumpEntry.getGroupId());
                     attr.put(FileAttributes.USER_ID,  (long)dumpEntry.getUserId());
-                    attr.put(FileAttributes.MODE,     dumpEntry.getMode());
+                    attr.put(FileAttributes.UNIX_PERMISSIONS,
+                             UnixPermissions.forMode(dumpEntry.getMode()));
 
                     type = DUMP_TYPE_MAP.get(dumpEntry.getType());
 
@@ -234,52 +234,55 @@ public class StreamArchiveExtractor extends ArchiveExtractor
 
                     var tarEntry = (TarArchiveEntry) entry;
 
-                    attr.put(FileAttributes.ARCHIVE,          FileAttributes.Archive.TAR);
+                    attr.put(FileAttributes.ARCHIVE,          Archive.TAR);
                     attr.put(FileAttributes.GROUP_ID,         tarEntry.getLongGroupId());
                     attr.put(FileAttributes.GROUP_NAME,       tarEntry.getGroupName());
                     attr.put(FileAttributes.USER_ID,          tarEntry.getLongUserId());
                     attr.put(FileAttributes.USER_NAME,        tarEntry.getUserName());
-                    attr.put(FileAttributes.MODE,             tarEntry.getMode());
                     attr.put(FileAttributes.CREATION_TIME,    tarEntry.getCreationTime());
                     attr.put(FileAttributes.LAST_ACCESS_TIME, tarEntry.getLastAccessTime());
 
-                    if(tarEntry.isFile())
+                    attr.put(FileAttributes.UNIX_PERMISSIONS,
+                             UnixPermissions.forMode(tarEntry.getMode()));
+
+                    if(tarEntry.isDirectory())
                     {
-                        type = FileAttributes.Type.REGULAR_FILE;
+                        type = FileType.DIRECTORY;
                     }
-                    else if(tarEntry.isDirectory())
+                    else if(tarEntry.isSymbolicLink())
                     {
-                        type = FileAttributes.Type.DIRECTORY;
-                    }
-                    else if(tarEntry.isSymbolicLink()) // "isLink()"??
-                    {
-                        type = FileAttributes.Type.SYMBOLIC_LINK;
+                        type = FileType.SYMBOLIC_LINK;
                     }
                     else if(tarEntry.isBlockDevice())
                     {
-                        type = FileAttributes.Type.BLOCK_DEVICE;
+                        type = FileType.BLOCK_DEVICE;
                     }
                     else if(tarEntry.isCharacterDevice())
                     {
-                        type = FileAttributes.Type.CHARACTER_DEVICE;
+                        type = FileType.CHARACTER_DEVICE;
                     }
                     else if(tarEntry.isFIFO())
                     {
-                        type = FileAttributes.Type.FIFO;
+                        type = FileType.FIFO;
                     }
                     else if(tarEntry.isLink())
                     {
-                        type = FileAttributes.Type.HARD_LINK;
+                        type = FileType.HARD_LINK;
+                    }
+                    else if(tarEntry.isFile())
+                    {
+                        // isFile() seems to be true for any non-directory entry.
+                        type = FileType.REGULAR_FILE;
                     }
                     else
                     {
-                        type = null;
+                        type = FileType.UNKNOWN;
                     }
                 }
                 else
                 {
                     // Theoretically not possible, but just in case...
-                    attr.put(FileAttributes.ARCHIVE, FileAttributes.Archive.UNKNOWN);
+                    attr.put(FileAttributes.ARCHIVE, Archive.UNKNOWN);
                 }
 
                 attr.put(FileAttributes.TYPE, type);
@@ -287,7 +290,18 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                 JWalker.InputSupplier entryInput;
                 if(ais.canReadEntryData(entry))
                 {
-                    entryInput = () -> ais;
+                    // Provide an uncloseable FilterInputStream to the client. The same stream is
+                    // reused for subsequent entries, so if actually closed by the client, problems
+                    // will ensue.
+                    //
+                    // (When we previously just passed 'ais' directly to the client, we'd get a
+                    // "stream closed" IOException when one streaming archive was nested directly
+                    // within another, once the inner archive was finished.)
+
+                    entryInput = () -> new FilterInputStream(ais)
+                    {
+                        @Override public void close() {} // Disable
+                    };
                 }
                 else
                 {
@@ -300,7 +314,6 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                 }
 
                 operation.filterFile(displayPath.resolve(entryPath), entryInput, attr);
-                // }
             }
         }
         catch(ArchiveException | IOException e)

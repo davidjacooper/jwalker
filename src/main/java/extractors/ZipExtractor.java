@@ -1,5 +1,6 @@
 package au.djac.jwalker.extractors;
 import au.djac.jwalker.*;
+import au.djac.jwalker.attr.*;
 
 import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
@@ -46,11 +47,14 @@ public class ZipExtractor extends RandomAccessArchiveExtractor
                 log.debug("File in .zip: {}", entryPath);
 
                 var attr = new FileAttributes();
-                attr.put(FileAttributes.ARCHIVE,  FileAttributes.Archive.ZIP);
+                attr.put(FileAttributes.ARCHIVE, Archive.ZIP);
 
+                int mode = 0;
                 if(entry.getPlatform() == ZipArchiveEntry.PLATFORM_UNIX)
                 {
-                    attr.put(FileAttributes.MODE, entry.getUnixMode());
+                    mode = entry.getUnixMode();
+                    //attr.put(FileAttributes.MODE, mode);
+                    attr.put(FileAttributes.UNIX_PERMISSIONS, UnixPermissions.forMode(mode));
                 }
 
                 attr.put(FileAttributes.SIZE,               entry.getSize());
@@ -59,18 +63,23 @@ public class ZipExtractor extends RandomAccessArchiveExtractor
                 attr.put(FileAttributes.LAST_MODIFIED_TIME, entry.getLastModifiedTime());
                 attr.put(FileAttributes.COMMENT,            entry.getComment());
 
-                FileAttributes.Type type;
+                FileType type;
                 if(entry.isDirectory())
                 {
-                    type = FileAttributes.Type.DIRECTORY;
+                    type = FileType.DIRECTORY;
                 }
                 else if(entry.isUnixSymlink())
                 {
-                    type = FileAttributes.Type.SYMBOLIC_LINK;
+                    type = FileType.SYMBOLIC_LINK;
+                }
+                else if(mode != 0)
+                {
+                    // If the UNIX mode exists, it may contain a file type itself.
+                    type = FileType.forMode(mode);
                 }
                 else
                 {
-                    type = FileAttributes.Type.REGULAR_FILE;
+                    type = FileType.REGULAR_FILE;
                 }
                 attr.put(FileAttributes.TYPE, type);
 

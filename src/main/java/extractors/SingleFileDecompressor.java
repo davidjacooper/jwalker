@@ -1,13 +1,17 @@
 package au.djac.jwalker.extractors;
+import au.djac.jwalker.attr.*;
 import au.djac.jwalker.*;
 
 import org.apache.commons.compress.compressors.*;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.compress.compressors.lz77support.AbstractLZ77CompressorInputStream;
 
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.file.*;
+import java.nio.file.attribute.FileTime;
 import java.util.*;
 
 /**
@@ -27,7 +31,7 @@ public class SingleFileDecompressor extends ArchiveExtractor
 
     private final Set<String> combinedTarExtensions;
     private final Map<String,String> extensionMap;
-    private final Map<String,FileAttributes.Archive> typeMap;
+    private final Map<String,Archive> typeMap;
 
     public SingleFileDecompressor()
     {
@@ -47,13 +51,13 @@ public class SingleFileDecompressor extends ArchiveExtractor
         // All the above extensions are shorthand for ".tar.*". The ones below are not.
         combinedTarExtensions = new HashSet<>(extensionMap.keySet());
 
-        extensionMap.put("br",   CompressorStreamFactory.BROTLI);
-        extensionMap.put("bz2",  CompressorStreamFactory.BZIP2);
-        extensionMap.put("gz",   CompressorStreamFactory.GZIP);
-        extensionMap.put("lzma", CompressorStreamFactory.LZMA);
-        extensionMap.put("xz",   CompressorStreamFactory.XZ);
-        extensionMap.put("z",    CompressorStreamFactory.Z);
-        extensionMap.put("zst",  CompressorStreamFactory.ZSTANDARD);
+        extensionMap.put("br",      CompressorStreamFactory.BROTLI);
+        extensionMap.put("bz2",     CompressorStreamFactory.BZIP2);
+        extensionMap.put("gz",      CompressorStreamFactory.GZIP);
+        extensionMap.put("lzma",    CompressorStreamFactory.LZMA);
+        extensionMap.put("xz",      CompressorStreamFactory.XZ);
+        extensionMap.put("z",       CompressorStreamFactory.Z);
+        extensionMap.put("zst",     CompressorStreamFactory.ZSTANDARD);
 
         // For lz4 and snappy, there are both 'framed' and 'block' versions, so we need
         // auto-detection.
@@ -65,21 +69,34 @@ public class SingleFileDecompressor extends ArchiveExtractor
         extensionMap.put("snz",    AUTODETECT);
         extensionMap.put("sz",     AUTODETECT);
 
+        // Deflate and deflate64? (not typically appearing in a standalone file)
+        extensionMap.put("deflate", AUTODETECT);
+        // extensionMap.put("zz",      AUTODETECT);
+
         // Lzip and Lzop are compression formats that Apache Commons Compress does not apparently
         // support, but we'll try to auto-detect them anyway. This way, the user will know... or
         // it will just magically work!
         extensionMap.put("lz",   AUTODETECT);
         extensionMap.put("lzo",  AUTODETECT);
 
-        typeMap = Map.of(
-            CompressorStreamFactory.BROTLI,    FileAttributes.Archive.BROTLI,
-            CompressorStreamFactory.BZIP2,     FileAttributes.Archive.BZIP2,
-            CompressorStreamFactory.GZIP,      FileAttributes.Archive.GZIP,
-            CompressorStreamFactory.LZMA,      FileAttributes.Archive.LZMA,
-            CompressorStreamFactory.XZ,        FileAttributes.Archive.XZ,
-            CompressorStreamFactory.Z,         FileAttributes.Archive.Z,
-            CompressorStreamFactory.ZSTANDARD, FileAttributes.Archive.ZSTANDARD
-        );
+        typeMap = new HashMap<>();
+        typeMap.put(CompressorStreamFactory.BROTLI,        Archive.BROTLI);
+        typeMap.put(CompressorStreamFactory.BZIP2,         Archive.BZIP2);
+        typeMap.put(CompressorStreamFactory.GZIP,          Archive.GZIP);
+        typeMap.put(CompressorStreamFactory.LZ4_BLOCK,     Archive.LZ4_BLOCK);
+        typeMap.put(CompressorStreamFactory.LZ4_FRAMED,    Archive.LZ4_FRAMED);
+        typeMap.put(CompressorStreamFactory.LZMA,          Archive.LZMA);
+        typeMap.put(CompressorStreamFactory.SNAPPY_FRAMED, Archive.SNAPPY_FRAMED);
+        typeMap.put(CompressorStreamFactory.SNAPPY_RAW,    Archive.SNAPPY_RAW);
+        typeMap.put(CompressorStreamFactory.XZ,            Archive.XZ);
+        typeMap.put(CompressorStreamFactory.Z,             Archive.Z);
+        typeMap.put(CompressorStreamFactory.ZSTANDARD,     Archive.ZSTANDARD);
+
+        // Apache Commons also supports DEFLATE, DEFLATE64 and PACK200, but these don't seem to be
+        // used as standalone files.
+
+        // typeMap.put(CompressorStreamFactory.DEFLATE,       Archive.DEFLATE);
+        // typeMap.put(CompressorStreamFactory.DEFLATE64,     Archive.DEFLATE64);
     }
 
     @Override
@@ -89,9 +106,9 @@ public class SingleFileDecompressor extends ArchiveExtractor
     }
 
     @Override
-    public FileAttributes.Type getModifiedFileType()
+    public FileType getModifiedFileType()
     {
-        return FileAttributes.Type.COMPRESSED_FILE;
+        return FileType.COMPRESSED_FILE;
     }
 
     @Override
@@ -117,48 +134,85 @@ public class SingleFileDecompressor extends ArchiveExtractor
                 }
             }
 
-            // There's no explicit filename 'within' the compressed file; instead, we deduce the
-            // correct name based on the original name.
-            String entryName = displayPath.getName(displayPath.getNameCount() - 1).toString();
-
-            // Strip extension
-            entryName = entryName.substring(0, entryName.lastIndexOf('.'));
-
-            // Possibly re-add .tar extension
-            if(combinedTarExtensions.contains(lExtension))
-            {
-                entryName += ".tar";
-            }
-
             var factory = CompressorStreamFactory.getSingleton();
             var bufIn = new BufferedInputStream(input.get());
+            var inputStream = compressor.equals(AUTODETECT)
+                ? factory.createCompressorInputStream(bufIn)
+                : factory.createCompressorInputStream(compressor, bufIn);
 
-            InputStream inputStream;
-            if(compressor.equals(AUTODETECT))
+            // Inherit the metadata of the compressed file, except for recording the compression
+            // format, and changing its type to a regular file, and deleting the size (because
+            // we mostly can't retrieve the uncompressed size without buffering the entire
+            // uncompressed content).
+            var uncompressedAttr = attr.copy();
+            uncompressedAttr.put(FileAttributes.ARCHIVE, typeMap.get(compressor));
+            uncompressedAttr.put(FileAttributes.TYPE,    FileType.REGULAR_FILE);
+            uncompressedAttr.put(FileAttributes.SIZE,    null);
+
+            String entryName = null;
+            Path uncompressedMatchPath;
+            Path uncompressedDisplayPath;
+
+            // Most compression formats apparently have no interesting metadata of their own.
+            // GZIP does, though (see http://www.zlib.org/rfc-gzip.html).
+            if(inputStream instanceof GzipCompressorInputStream)
             {
-                inputStream = factory.createCompressorInputStream(bufIn);
+                // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/compressors/gzip/GzipCompressorInputStream.html
+                var gzMetadata = ((GzipCompressorInputStream)inputStream).getMetaData();
+
+                // GZIP stores times in seconds, but Commons Compress returns it in milliseconds.
+                uncompressedAttr.put(FileAttributes.LAST_MODIFIED_TIME,
+                                     FileTime.fromMillis(gzMetadata.getModificationTime()));
+
+                uncompressedAttr.put(FileAttributes.GZIP_HOST_FS,
+                                     GzipHostFS.forCode(gzMetadata.getOperatingSystem()));
+
+                // Comments are optional, and should be null if absent.
+                uncompressedAttr.put(FileAttributes.COMMENT, gzMetadata.getComment());
+
+                // GZIPs can store an optional original filename; may be null.
+                entryName = gzMetadata.getFilename();
+            }
+            else if(inputStream instanceof AbstractLZ77CompressorInputStream)
+            {
+                // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/compressors/lz77support/AbstractLZ77CompressorInputStream.html
+                // Used for LZ4 (block) and Snappy. Just in these cases, apparently we _can_
+                // retrieve the uncompressed size.
+                uncompressedAttr.put(
+                    FileAttributes.SIZE,
+                    (long)((AbstractLZ77CompressorInputStream)inputStream).getSize());
+            }
+
+            if(entryName == null)
+            {
+                // There's no explicit filename 'within' the compressed file; instead, we deduce the
+                // correct name based on the original name.
+                entryName = displayPath.getName(displayPath.getNameCount() - 1).toString();
+
+                // Strip extension
+                entryName = entryName.substring(0, entryName.lastIndexOf('.'));
+
+                // Possibly re-add .tar extension
+                if(combinedTarExtensions.contains(lExtension))
+                {
+                    entryName += ".tar";
+                }
+                uncompressedMatchPath = displayPath.resolve(entryName);
+                uncompressedDisplayPath = displayPath;
             }
             else
             {
-                inputStream = factory.createCompressorInputStream(compressor, bufIn);
+                uncompressedMatchPath = displayPath.resolve(entryName);
+                uncompressedDisplayPath = uncompressedMatchPath;
             }
 
-            // Inherit the metadata of the compressed file, except for recording the compression
-            // format, and changing its type to a regular file.
-            var uncompressedAttr = attr.copy();
-            uncompressedAttr.put(FileAttributes.ARCHIVE, typeMap.get(compressor));
-            uncompressedAttr.put(FileAttributes.TYPE,    FileAttributes.Type.REGULAR_FILE);
+            System.out.printf("SingleFileDecompressor: matchPath==%s, displayPath==%s, attr==%s\n",
+                uncompressedMatchPath, uncompressedDisplayPath, uncompressedAttr);
 
             operation.filterFile(
-                // No filesystem path available.
-                null,
-
-                // Uncompressed file's matchPath reflects its uncompressed nature.
-                displayPath.resolve(entryName), // matchPath
-
-                // Uncompressed file inherits the same displayPath as the compressed file.
-                displayPath,
-
+                null, // No filesystem path available.
+                uncompressedMatchPath,
+                uncompressedDisplayPath,
                 () -> inputStream,
                 uncompressedAttr);
         }

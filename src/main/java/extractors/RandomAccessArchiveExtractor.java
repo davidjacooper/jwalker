@@ -1,4 +1,5 @@
 package au.djac.jwalker.extractors;
+import au.djac.jwalker.attr.*;
 import au.djac.jwalker.*;
 
 import org.apache.commons.io.IOUtils;
@@ -28,9 +29,9 @@ public abstract class RandomAccessArchiveExtractor extends ArchiveExtractor
     }
 
     @Override
-    public FileAttributes.Type getModifiedFileType()
+    public FileType getModifiedFileType()
     {
-        return FileAttributes.Type.ARCHIVE;
+        return FileType.ARCHIVE;
     }
 
     protected abstract void extract(JWalkerOperation operation,

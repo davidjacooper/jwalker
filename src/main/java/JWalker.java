@@ -1,4 +1,5 @@
 package au.djac.jwalker;
+import au.djac.jwalker.attr.*;
 import au.djac.jwalker.extractors.*;
 
 import java.io.*;
@@ -33,12 +34,14 @@ public class JWalker
 
     private int maxDepth = Integer.MAX_VALUE;
     private boolean recurseIntoArchives = true;
-    private boolean followLinks = false;      // TBD: whether the follow FS symlinks. (We're not going to follow links within archives.)
+    private boolean followLinks = false;
     private boolean unixAttributes = true;
+    private boolean dosAttributes = false;
 
     private List<PathMatcher> inclusions = new ArrayList<>();
     private List<PathMatcher> exclusions = new ArrayList<>();
-    private Set<FileAttributes.Type> fileTypes = null;
+    private Set<FileType> fileTypes = null;
+    private boolean invertedFileTypes = false;
     private Set<ArchiveExtractor> extractors = null;
     private Map<String,ArchiveExtractor> extractorMap = null;
 
@@ -79,7 +82,15 @@ public class JWalker
         walk(rootPath, fileConsumer, (path, attr, msg, ex) -> { throw new JWalkerException(msg, ex); });
     }
 
-    // TBD
+    /**
+     * Specifies the number of directory levels to visit, counting archive files as directories
+     * (unless 'recurseIntoArchives' is false). Any files in directories/archives that are nested
+     * more deeply are skipped. A value of 0 corresponds to just the path explicitly passed to
+     * {@code walk()}.
+     *
+     * @param d The maximum recursion depth.
+     * @return This object.
+     */
     public JWalker maxDepth(int d)
     {
         maxDepth = d;
@@ -91,6 +102,7 @@ public class JWalker
      *
      * @param b If true (the default), archive files are treated like directories. If false, they
      * are treated as regular files.
+     * @return This object.
      */
     public JWalker recurseIntoArchives(boolean b)
     {
@@ -98,46 +110,163 @@ public class JWalker
         return this;
     }
 
+    /**
+     * Specifies whether to follow symbolic links outside of archives (false by default).
+     * Symbolic links occurring <em>within</em> archive files are generally <em>not</em> followed,
+     * regardless of this setting.
+     *
+     * @param b Whether to follow symbolic links (outside archive files).
+     * @return This object.
+     */
     public JWalker followLinks(boolean b)
     {
         followLinks = b;
         return this;
     }
 
+    /**
+     * Specifies whether to (try to) obtain UNIX-related attributes from files, outside of archives
+     * (true by default). This includes user and group names, and read/write/execute permissions.
+     *
+     * <p>This does not affect files within archives, where this information is automatically
+     * retrieved anyway if available.
+     *
+     * @param b Whether to obtain UNIX attributes.
+     * @return This object.
+     */
     public JWalker unixAttributes(boolean b)
     {
         unixAttributes = b;
         return this;
     }
 
-    private void initFileTypes()
+    public JWalker dosAttributes(boolean b)
     {
-        if(this.fileTypes == null)
-        {
-            this.fileTypes = new HashSet<>();
-        }
-    }
-
-    public JWalker fileTypes(FileAttributes.Type... newFileTypes)
-    {
-        initFileTypes();
-        for(var t : newFileTypes)
-        {
-            this.fileTypes.add(t);
-        }
+        dosAttributes = b;
         return this;
     }
 
-    public JWalker fileTypes(Iterable<FileAttributes.Type> newFileTypes)
+    private JWalker fileTypes(boolean inverted, Iterable<FileType> newFileTypes)
     {
-        initFileTypes();
+        if(this.fileTypes != null && this.invertedFileTypes != inverted)
+        {
+            throw new IllegalStateException(
+                "Cannot mix calls to fileTypes(), fileTypesExcept() and allFileTypes()");
+        }
+        if(this.fileTypes == null)
+        {
+            this.fileTypes = new HashSet<>();
+            this.invertedFileTypes = inverted;
+        }
         newFileTypes.forEach(this.fileTypes::add);
         return this;
     }
 
-    public Set<FileAttributes.Type> defaultFileTypes()
+    /**
+     * Causes {@code walk()} to report only the given set of file types. This does not limit the
+     * extent of recursion; directories and archives will still be recursed into irrespective of
+     * this setting.
+     *
+     * <p>The default is to report those file types returned by {@link defaultFileTypes()}. This
+     * default is forgotten when calling {@code fileTypes()}, {@code fileTypesExcept()} or
+     * {@code allFileTypes()}.
+     *
+     * @param includedFileTypes One or more {@link FileType} values, representing the
+     * file type(s) to report.
+     * @return This object.
+     */
+    public JWalker fileTypes(FileType... includedFileTypes)
     {
-        return Set.of(FileAttributes.Type.REGULAR_FILE);
+        return fileTypes(false, Arrays.asList(includedFileTypes));
+    }
+
+    /**
+     * Causes {@code walk()} to report only the given set of file types. This does not limit the
+     * extent of recursion; directories and archives will still be recursed into irrespective of
+     * this setting.
+     *
+     * <p>The default is to report those file types returned by {@link defaultFileTypes()}. This
+     * default is forgotten when calling {@code fileTypes()}, {@code fileTypesExcept()} or
+     * {@code allFileTypes()}.
+     *
+     * @param includedFileTypes An {@code Iterable} returning {@link FileType} values,
+     * representing the file type(s) to report.
+     * @return This object.
+     */
+    public JWalker fileTypes(Iterable<FileType> includedFileTypes)
+    {
+        return fileTypes(false, includedFileTypes);
+    }
+
+    /**
+     * Causes {@code walk()} to report all file types <em>except</em> for a given set. This does not
+     * limit the extent of recursion; directories and archives will still be recursed into
+     * irrespective of this setting.
+     *
+     * <p>This cannot be used in conjunction with {@code fileTypes()}. If you wish to specify
+     * which file types to report, you must do so either inclusively ({@code fileTypes()})
+     * <em>or</em> exclusively ({@code fileTypesExcept()} or {@code allFileTypes()}).
+     *
+     * <p>The default is to report those file types returned by {@link defaultFileTypes()}. This
+     * default is forgotten when calling {@code fileTypes()}, {@code fileTypesExcept()} or
+     * {@code allFileTypes()}.
+     *
+     * @param excludedFileTypes One or more {@link FileType} values, representing the
+     * file type(s) <em>not</em> to report.
+     * @return This object.
+     */
+    public JWalker fileTypesExcept(FileType... excludedFileTypes)
+    {
+        return fileTypes(true, Arrays.asList(excludedFileTypes));
+    }
+
+    /**
+     * Causes {@code walk()} to report all file types <em>except</em> for a given set. This does not
+     * limit the extent of recursion; directories and archives will still be recursed into
+     * irrespective of this setting.
+     *
+     * <p>This cannot be used in conjunction with {@code fileTypes()}. If you wish to specify
+     * which file types to report, you must do so either inclusively ({@code fileTypes()})
+     * <em>or</em> exclusively ({@code fileTypesExcept()} or {@code allFileTypes()}).
+     *
+     * <p>The default is to report those file types returned by {@link defaultFileTypes()}. This
+     * default is forgotten when calling {@code fileTypes()}, {@code fileTypesExcept()} or
+     * {@code allFileTypes()}.
+     *
+     * @param excludedFileTypes An {@code Iterable} returning {@link FileType} values,
+     * representing the file type(s) <em>not</em> to report.
+     * @return This object.
+     */
+    public JWalker fileTypesExcept(Iterable<FileType> excludedFileTypes)
+    {
+        return fileTypes(true, excludedFileTypes);
+    }
+
+    /**
+     * Causes {@code walk()} to report all file types.
+     *
+     * <p>The default is to report those file types returned by {@link defaultFileTypes()}. This
+     * default is forgotten when calling {@code fileTypes()}, {@code fileTypesExcept()} or
+     * {@code allFileTypes()}.
+     *
+     * @return This object.
+     */
+    public JWalker allFileTypes()
+    {
+        fileTypes = new HashSet<>();
+        invertedFileTypes = true;
+        return this;
+    }
+
+    /**
+     * Returns the set of file types to be reported by {@code walk()} <em>in the absence</em> of any
+     * call to {@code fileTypes()}, {@code fileTypesExcept()} or {@code allFileTypes()}.
+     *
+     * @return The set of default file types.
+     */
+    public Set<FileType> defaultFileTypes()
+    {
+        return Set.of(FileType.REGULAR_FILE);
     }
 
     private PathMatcher globMatcher(String globPattern)
@@ -228,11 +357,12 @@ public class JWalker
     boolean recurseIntoArchives()  { return recurseIntoArchives; }
     boolean followLinks()          { return followLinks; }
     boolean unixAttributes()       { return unixAttributes; }
+    boolean dosAttributes()        { return dosAttributes; }
 
 
-    boolean showFileType(FileAttributes.Type type)
+    boolean showFileType(FileType type)
     {
-        return ((fileTypes == null) ? defaultFileTypes() : fileTypes).contains(type);
+        return ((fileTypes == null) ? defaultFileTypes() : fileTypes).contains(type) != invertedFileTypes;
     }
 
     List<PathMatcher> inclusions() { return inclusions; }

@@ -1,4 +1,5 @@
 package au.djac.jwalker.extractors;
+import au.djac.jwalker.attr.*;
 import au.djac.jwalker.*;
 
 import org.apache.commons.io.FileUtils;
@@ -78,22 +79,22 @@ public class RarExtractor extends RandomAccessArchiveExtractor
                 (entryPath, basicAttr) ->
                 {
                     var attr = new FileAttributes();
-                    attr.put(FileAttributes.ARCHIVE, FileAttributes.Archive.RAR);
+                    attr.put(FileAttributes.ARCHIVE, Archive.RAR);
                     attr.put(FileAttributes.SIZE, basicAttr.size());
                     attr.put(FileAttributes.LAST_MODIFIED_TIME, basicAttr.lastModifiedTime());
 
-                    FileAttributes.Type type = null;
+                    FileType type = null;
                     if(basicAttr.isRegularFile())
                     {
-                        type = FileAttributes.Type.REGULAR_FILE;
+                        type = FileType.REGULAR_FILE;
                     }
                     else if(basicAttr.isDirectory())
                     {
-                        type = FileAttributes.Type.DIRECTORY;
+                        type = FileType.DIRECTORY;
                     }
                     else if(basicAttr.isSymbolicLink())
                     {
-                        type = FileAttributes.Type.SYMBOLIC_LINK;
+                        type = FileType.SYMBOLIC_LINK;
                     }
                     attr.put(FileAttributes.TYPE, type);
 

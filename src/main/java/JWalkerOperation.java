@@ -1,5 +1,6 @@
 package au.djac.jwalker;
 import static au.djac.jwalker.JWalker.*;
+import au.djac.jwalker.attr.*;
 import au.djac.jwalker.extractors.*;
 
 import org.slf4j.Logger;
@@ -67,58 +68,74 @@ public class JWalkerOperation
         attr.put(FileAttributes.LAST_MODIFIED_TIME, basicAttr.lastModifiedTime());
         attr.put(FileAttributes.SIZE,               basicAttr.size());
 
-        FileAttributes.Type type = null;
+        FileType type = null;
         if(basicAttr.isDirectory())
         {
-            type = FileAttributes.Type.DIRECTORY;
+            type = FileType.DIRECTORY;
         }
         else if(basicAttr.isRegularFile())
         {
-            type = FileAttributes.Type.REGULAR_FILE;
+            type = FileType.REGULAR_FILE;
         }
         else if(basicAttr.isSymbolicLink())
         {
-            type = FileAttributes.Type.SYMBOLIC_LINK;
+            type = FileType.SYMBOLIC_LINK;
         }
         attr.put(FileAttributes.TYPE, type);
 
-        if(fsPath != null && options.unixAttributes())
+        if(fsPath != null)
         {
-            PosixFileAttributes posixAttr = null;
-            try
+            if(options.unixAttributes())
             {
-                posixAttr = Files.readAttributes(
-                    fsPath, PosixFileAttributes.class, linkOptions);
-            }
-            catch(UnsupportedOperationException e)
-            {
-                log.atDebug().setCause(e).log("File '{}' does not support POSIX file attributes", fsPath);
-            }
-            catch(IOException e)
-            {
-                error(fsPath,
-                      attr,
-                      String.format("Could not read POSIX file attributes from '%s'", fsPath),
-                      e);
-            }
-
-            if(posixAttr != null)
-            {
-                attr.put(FileAttributes.USER_NAME,  posixAttr.owner().getName());
-                attr.put(FileAttributes.GROUP_NAME, posixAttr.group().getName());
-
-                var permissions = posixAttr.permissions();
-                int mode = 0;
-                int bit = 0;
-                for(var perm : FileAttributes.POSIX_FILE_PERMISSIONS)
+                PosixFileAttributes posixAttr = null;
+                try
                 {
-                    if(permissions.contains(perm))
-                    {
-                        mode |= (1 << bit);
-                    }
-                    bit++;
+                    posixAttr = Files.readAttributes(
+                        fsPath, PosixFileAttributes.class, linkOptions);
                 }
-                attr.put(FileAttributes.MODE, mode);
+                catch(UnsupportedOperationException e)
+                {
+                    log.atDebug().setCause(e).log("File '{}' does not support POSIX file attributes", fsPath);
+                }
+                catch(IOException e)
+                {
+                    error(fsPath,
+                          attr,
+                          String.format("Could not read POSIX file attributes from '%s'", fsPath),
+                          e);
+                }
+
+                if(posixAttr != null)
+                {
+                    attr.put(FileAttributes.USER_NAME,  posixAttr.owner().getName());
+                    attr.put(FileAttributes.GROUP_NAME, posixAttr.group().getName());
+                    attr.put(FileAttributes.UNIX_PERMISSIONS,
+                             UnixPermissions.forSet(posixAttr.permissions()));
+                }
+            }
+            if(options.dosAttributes())
+            {
+                DosFileAttributes dosAttr = null;
+                try
+                {
+                    dosAttr = Files.readAttributes(fsPath, DosFileAttributes.class, linkOptions);
+                }
+                catch(UnsupportedOperationException e)
+                {
+                    log.atDebug().setCause(e).log("File '{}' does not support DOS file attributes", fsPath);
+                }
+                catch(IOException e)
+                {
+                    error(fsPath,
+                          attr,
+                          String.format("Could not read DOS file attributes from '%s'", fsPath),
+                          e);
+                }
+
+                if(dosAttr != null)
+                {
+                    attr.put(FileAttributes.DOS, DosAttributes.forAttr(dosAttr));
+                }
             }
         }
 
@@ -145,6 +162,12 @@ public class JWalkerOperation
                          Path displayPath,
                          BiFunction<Path,BasicFileAttributes,FileAttributes> attrFn)
     {
+        int maxDepth = options.maxDepth();
+        if(maxDepth != Integer.MAX_VALUE)
+        {
+            maxDepth -= fsPath.getNameCount() - rootDepth;
+        }
+
         try
         {
             Files.walkFileTree(
@@ -152,7 +175,7 @@ public class JWalkerOperation
                 options.followLinks()
                     ? Set.of(FileVisitOption.FOLLOW_LINKS)
                     : Set.of(),
-                options.maxDepth() - (fsPath.getNameCount() - rootDepth),
+                maxDepth,
                 new FileVisitor<>()
                 {
                     @Override
@@ -320,7 +343,7 @@ public class JWalkerOperation
         ArchiveExtractor extractor = null;
         String ext = null;
 
-        if(type == FileAttributes.Type.REGULAR_FILE)
+        if(type == FileType.REGULAR_FILE)
         {
             var pathStr = matchPath.toString();
             var extIndex = pathStr.lastIndexOf('.');
@@ -362,6 +385,10 @@ public class JWalkerOperation
             {
                 log.debug("Excluding by default");
             }
+        }
+        else
+        {
+            log.debug("Excluding '{}' because it's type {}", displayPath, type);
         }
 
         if(extractor != null && options.recurseIntoArchives())
