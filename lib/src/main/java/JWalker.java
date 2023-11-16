@@ -1,6 +1,7 @@
 package au.djac.jwalker;
 import au.djac.jwalker.attr.*;
 import au.djac.jwalker.extractors.*;
+import au.djac.jwalker.tree.*;
 
 import java.io.*;
 import java.nio.file.*;
@@ -80,6 +81,15 @@ public class JWalker
     public void walk(Path rootPath, FileConsumer fileConsumer)
     {
         walk(rootPath, fileConsumer, (path, attr, msg, ex) -> { throw new JWalkerException(msg, ex); });
+    }
+
+    public FileTree makeTree(Path rootPath)
+    {
+        var tree = new FileTree(rootPath);
+        walk(rootPath,
+             (path, input, attr) -> tree.addPath(path, attr),
+             (path, attr, msg, ex) -> tree.addError(path, msg, ex));
+        return tree;
     }
 
     /**

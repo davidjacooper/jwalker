@@ -79,7 +79,7 @@ public class RarExtractor extends RandomAccessArchiveExtractor
                 (entryPath, basicAttr) ->
                 {
                     var attr = new FileAttributes();
-                    attr.put(FileAttributes.ARCHIVE, Archive.RAR);
+                    attr.put(FileAttributes.IN_ARCHIVE, Archive.RAR);
                     attr.put(FileAttributes.SIZE, basicAttr.size());
                     attr.put(FileAttributes.LAST_MODIFIED_TIME, basicAttr.lastModifiedTime());
 

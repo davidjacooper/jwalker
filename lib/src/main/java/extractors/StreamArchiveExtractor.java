@@ -109,7 +109,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                 {
                     // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/ar/ArArchiveEntry.html
                     var arEntry = (ArArchiveEntry) entry;
-                    attr.put(FileAttributes.ARCHIVE,  Archive.AR);
+                    attr.put(FileAttributes.IN_ARCHIVE,  Archive.AR);
                     attr.put(FileAttributes.GROUP_ID, (long)arEntry.getGroupId());
                     attr.put(FileAttributes.USER_ID,  (long)arEntry.getUserId());
 
@@ -130,7 +130,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                 {
                     // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/arj/ArjArchiveEntry.html
                     var arjEntry = (ArjArchiveEntry) entry;
-                    attr.put(FileAttributes.ARCHIVE, Archive.ARJ);
+                    attr.put(FileAttributes.IN_ARCHIVE, Archive.ARJ);
                     attr.put(FileAttributes.ARJ_HOST_OS, ArjHostOS.forCode(arjEntry.getHostOs()));
 
                     if(arjEntry.isHostOsUnix())
@@ -153,7 +153,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                     // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/cpio/CpioArchiveEntry.html
                     var cpioEntry = (CpioArchiveEntry) entry;
 
-                    attr.put(FileAttributes.ARCHIVE,  Archive.CPIO);
+                    attr.put(FileAttributes.IN_ARCHIVE,  Archive.CPIO);
                     attr.put(FileAttributes.GROUP_ID, cpioEntry.getGID());
                     attr.put(FileAttributes.USER_ID,  cpioEntry.getUID());
 
@@ -206,7 +206,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                     // https://commons.apache.org/proper/commons-compress/apidocs/org/apache/commons/compress/archivers/dump/DumpArchiveEntry.html
                     var dumpEntry = (DumpArchiveEntry) entry;
 
-                    attr.put(FileAttributes.ARCHIVE, Archive.DUMP);
+                    attr.put(FileAttributes.IN_ARCHIVE, Archive.DUMP);
                     var ctime = dumpEntry.getCreationTime();
                     if(ctime != null)
                     {
@@ -234,7 +234,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
 
                     var tarEntry = (TarArchiveEntry) entry;
 
-                    attr.put(FileAttributes.ARCHIVE,          Archive.TAR);
+                    attr.put(FileAttributes.IN_ARCHIVE,       Archive.TAR);
                     attr.put(FileAttributes.GROUP_ID,         tarEntry.getLongGroupId());
                     attr.put(FileAttributes.GROUP_NAME,       tarEntry.getGroupName());
                     attr.put(FileAttributes.USER_ID,          tarEntry.getLongUserId());
@@ -282,7 +282,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                 else
                 {
                     // Theoretically not possible, but just in case...
-                    attr.put(FileAttributes.ARCHIVE, Archive.UNKNOWN);
+                    attr.put(FileAttributes.IN_ARCHIVE, Archive.UNKNOWN);
                 }
 
                 attr.put(FileAttributes.TYPE, type);

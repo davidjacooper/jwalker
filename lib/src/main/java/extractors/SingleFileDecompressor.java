@@ -145,9 +145,9 @@ public class SingleFileDecompressor extends ArchiveExtractor
             // we mostly can't retrieve the uncompressed size without buffering the entire
             // uncompressed content).
             var uncompressedAttr = attr.copy();
-            uncompressedAttr.put(FileAttributes.ARCHIVE, typeMap.get(compressor));
-            uncompressedAttr.put(FileAttributes.TYPE,    FileType.REGULAR_FILE);
-            uncompressedAttr.put(FileAttributes.SIZE,    null);
+            uncompressedAttr.put(FileAttributes.IN_ARCHIVE, typeMap.get(compressor));
+            uncompressedAttr.put(FileAttributes.TYPE, FileType.REGULAR_FILE);
+            uncompressedAttr.put(FileAttributes.SIZE, null);
 
             String entryName = null;
             Path uncompressedMatchPath;

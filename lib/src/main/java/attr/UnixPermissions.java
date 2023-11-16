@@ -9,6 +9,11 @@ import java.util.*;
  */
 public final class UnixPermissions
 {
+    public static class ParseException extends RuntimeException
+    {
+        public ParseException(String msg) { super(msg); }
+    }
+
     /**
      * A list of the PosixFilePermission constants by order of bit position in a conventional
      * UNIX file mode integer. That is, {@code OTHERS_EXECUTE} is bit 0 (the rightmost),
@@ -55,6 +60,34 @@ public final class UnixPermissions
             bit++;
         }
         return new UnixPermissions(mode);
+    }
+
+    public static UnixPermissions forString(String s)
+    {
+        var ch = new char[9];
+        switch(s.length())
+        {
+            case 9: s.getChars(0, 9, ch, 0); break;
+            case 10: s.getChars(1, 10, ch, 0); break;
+            default: throw new ParseException("Incorrect permission format");
+        }
+
+        return new UnixPermissions(
+            // User permissions (setUID)
+            ((ch[0] == 'r') ? 00400 : 0) +
+            ((ch[1] == 'w') ? 00200 : 0) +
+            ((ch[2] == 'x') ? 00100 : ((ch[2] == 'S') ? 04000 : ((ch[2] == 's') ? 04100 : 0))) +
+
+            // Group permissions (including setGUI)
+            ((ch[3] == 'r') ? 00040 : 0) +
+            ((ch[4] == 'w') ? 00020 : 0) +
+            ((ch[5] == 'x') ? 00010 : ((ch[5] == 'S') ? 02000 : ((ch[5] == 's') ? 02010 : 0))) +
+
+            // Other permissions (including the sticky bit)
+            ((ch[6] == 'r') ? 00004 : 0) +
+            ((ch[7] == 'w') ? 00002 : 0) +
+            ((ch[8] == 'x') ? 00001 : ((ch[8] == 'T') ? 01000 : ((ch[8] == 't') ? 01001 : 0)))
+        );
     }
 
     private int mode;

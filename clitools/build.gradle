@@ -1,0 +1,39 @@
+plugins {
+    id 'application'
+}
+
+repositories {
+    maven {
+        url 'file:///home/dave/work/jprinttree/build/repo'
+    }
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':lib')
+
+    implementation 'au.djac:jprinttree:1.0.0'
+
+    implementation 'info.picocli:picocli:4.7.5'
+    implementation 'org.slf4j:slf4j-api:2.0.0'
+    implementation 'ch.qos.logback:logback-classic:1.3.0'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+}
+
+application {
+    mainClass = 'au.djac.jwalker.clitools.ArTree'
+}
+
+
+compileJava {
+    options.compilerArgs << "-Xlint:all,-serial"
+}
+
+// tasks.named('test') {
+//     useJUnitPlatform()
+// }

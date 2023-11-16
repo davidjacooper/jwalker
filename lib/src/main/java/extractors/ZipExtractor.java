@@ -47,7 +47,7 @@ public class ZipExtractor extends RandomAccessArchiveExtractor
                 log.debug("File in .zip: {}", entryPath);
 
                 var attr = new FileAttributes();
-                attr.put(FileAttributes.ARCHIVE, Archive.ZIP);
+                attr.put(FileAttributes.IN_ARCHIVE, Archive.ZIP);
 
                 int mode = 0;
                 if(entry.getPlatform() == ZipArchiveEntry.PLATFORM_UNIX)

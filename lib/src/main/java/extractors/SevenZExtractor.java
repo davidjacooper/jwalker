@@ -44,7 +44,7 @@ public class SevenZExtractor extends RandomAccessArchiveExtractor
                 log.debug("Entry in .7z: {}", entryPath);
 
                 var attr = new FileAttributes();
-                attr.put(FileAttributes.ARCHIVE, Archive.SEVENZ);
+                attr.put(FileAttributes.IN_ARCHIVE, Archive.SEVENZ);
                 attr.put(FileAttributes.SIZE, entry.getSize());
 
 
