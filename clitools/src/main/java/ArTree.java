@@ -70,11 +70,35 @@ public class ArTree implements Callable<Integer>
 
         var tree = new JWalker().makeTree(rootPath);
 
-        var out = new TreePrintStream(System.out).preNodeLines(0);
+        var out = new TreeWriter(System.out);
+        out.options().topMargin(1); //.topConnectorLength(1); //.connector("+").parentLine("|");
 
         out.printTree(tree.getRoot(),
                       FileTreeNode::getChildren,
                       FileTreeNode::getName);
+        out.flush();
+
+        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
+        out.startNode(false, out.options().copy().asPreLabel());
+        out.println("label!");
+        out.endNode();
+        out.startNode(false);
+        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
+        out.startNode(false, out.options().copy().asLabel());
+        out.println("label!");
+        out.endNode();
+        out.startNode(false);
+        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
+        out.endNode();
+        out.println("just some text");
+        out.printLabel("another label");
+        out.startNode(true);
+        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
+        out.endNode();
+        out.endNode();
+        out.startNode(true);
+        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
+        out.endNode();
 
         return 0;
     }

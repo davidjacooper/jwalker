@@ -34,6 +34,22 @@ compileJava {
     options.compilerArgs << "-Xlint:all,-serial"
 }
 
+tasks.withType(JavaExec) {
+    // This is how we run the code via Gradle itself. None of this should find its way into the
+    // start scripts, as it might if we specified run{...}.
+
+    // If we run the application via Gradle, we want the logger to report
+    // debugging information.
+    systemProperties['logback.configurationFile'] =
+        "$projectDir/src/debug/resources/logback-debug.xml"
+}
+
 // tasks.named('test') {
+//     // Apparently needed to make Gradle work with Spock 2.
 //     useJUnitPlatform()
+//
+//     // We must specify the debug configuration explicitly, because Logback will fall back to the
+//     // production configuration file (src/main/resources/logback.xml).
+//     systemProperties['logback.configurationFile'] =
+//         "$projectDir/src/debug/resources/logback-debug.xml"
 // }
