@@ -1,12 +1,13 @@
 package au.djac.jwalker.attr;
 
-import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.*;
 import java.util.*;
 
 /**
  * Represents a set of UNIX-style file permissions, including read/write/execute permissions for
  * the file's user (owner), group and others, as well as the "set UID", "set GUI" and "sticky" bits.
  */
+@SuppressWarnings("PMD.AvoidUsingOctalValues")
 public final class UnixPermissions
 {
     public static class ParseException extends RuntimeException
@@ -39,7 +40,7 @@ public final class UnixPermissions
 
     /**
      * Create a {@code UnixPermissions} instance from a set of {@link PosixFilePermission}, as might
-     * be returned from {@link PosixFileAttributes.permissions}, for compatibility with the JDK.
+     * be returned from {@link PosixFileAttributes#permissions}, for compatibility with the JDK.
      *
      * <p>Note that {@code PosixFilePermission} <em>does not</em> have a representation of the
      * "set UID", "set GUI" and "sticky" bits.

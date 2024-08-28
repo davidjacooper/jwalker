@@ -33,18 +33,18 @@ public class JWalker
     }
 
 
-    private int maxDepth = Integer.MAX_VALUE;
-    private boolean recurseIntoArchives = true;
-    private boolean followLinks = false;
-    private boolean unixAttributes = true;
-    private boolean dosAttributes = false;
+    private int _maxDepth = Integer.MAX_VALUE;
+    private boolean _recurseIntoArchives = true;
+    private boolean _followLinks = false;
+    private boolean _unixAttributes = true;
+    private boolean _dosAttributes = false;
 
-    private List<PathMatcher> inclusions = new ArrayList<>();
-    private List<PathMatcher> exclusions = new ArrayList<>();
-    private Set<FileType> fileTypes = null;
-    private boolean invertedFileTypes = false;
-    private Set<ArchiveExtractor> extractors = null;
-    private Map<String,ArchiveExtractor> extractorMap = null;
+    private List<PathMatcher> _inclusions = new ArrayList<>();
+    private List<PathMatcher> _exclusions = new ArrayList<>();
+    private Set<FileType> _fileTypes = null;
+    private boolean _invertedFileTypes = false;
+    private Set<ArchiveExtractor> _extractors = null;
+    private Map<String,ArchiveExtractor> _extractorMap = null;
 
     public JWalker() {}
 
@@ -103,7 +103,7 @@ public class JWalker
      */
     public JWalker maxDepth(int d)
     {
-        maxDepth = d;
+        _maxDepth = d;
         return this;
     }
 
@@ -116,7 +116,7 @@ public class JWalker
      */
     public JWalker recurseIntoArchives(boolean b)
     {
-        recurseIntoArchives = b;
+        _recurseIntoArchives = b;
         return this;
     }
 
@@ -130,7 +130,7 @@ public class JWalker
      */
     public JWalker followLinks(boolean b)
     {
-        followLinks = b;
+        _followLinks = b;
         return this;
     }
 
@@ -146,29 +146,29 @@ public class JWalker
      */
     public JWalker unixAttributes(boolean b)
     {
-        unixAttributes = b;
+        _unixAttributes = b;
         return this;
     }
 
     public JWalker dosAttributes(boolean b)
     {
-        dosAttributes = b;
+        _dosAttributes = b;
         return this;
     }
 
     private JWalker fileTypes(boolean inverted, Iterable<FileType> newFileTypes)
     {
-        if(this.fileTypes != null && this.invertedFileTypes != inverted)
+        if(this._fileTypes != null && this._invertedFileTypes != inverted)
         {
             throw new IllegalStateException(
                 "Cannot mix calls to fileTypes(), fileTypesExcept() and allFileTypes()");
         }
-        if(this.fileTypes == null)
+        if(this._fileTypes == null)
         {
-            this.fileTypes = new HashSet<>();
-            this.invertedFileTypes = inverted;
+            this._fileTypes = new HashSet<>();
+            this._invertedFileTypes = inverted;
         }
-        newFileTypes.forEach(this.fileTypes::add);
+        newFileTypes.forEach(this._fileTypes::add);
         return this;
     }
 
@@ -263,8 +263,8 @@ public class JWalker
      */
     public JWalker allFileTypes()
     {
-        fileTypes = new HashSet<>();
-        invertedFileTypes = true;
+        _fileTypes = new HashSet<>();
+        _invertedFileTypes = true;
         return this;
     }
 
@@ -303,43 +303,43 @@ public class JWalker
 
     public JWalker include(String globPattern)
     {
-        inclusions.add(globMatcher(globPattern));
+        _inclusions.add(globMatcher(globPattern));
         return this;
     }
 
     public JWalker include(PathMatcher matcher)
     {
-        inclusions.add(matcher);
+        _inclusions.add(matcher);
         return this;
     }
 
     public JWalker exclude(String globPattern)
     {
-        exclusions.add(globMatcher(globPattern));
+        _exclusions.add(globMatcher(globPattern));
         return this;
     }
 
     public JWalker exclude(PathMatcher matcher)
     {
-        exclusions.add(matcher);
+        _exclusions.add(matcher);
         return this;
     }
 
     private void initExtractors()
     {
-        if(this.extractors == null)
+        if(this._extractors == null)
         {
-            this.extractors = new HashSet<>();
+            this._extractors = new HashSet<>();
         }
-        extractorMap = null;
+        _extractorMap = null;
     }
 
     public JWalker extractWith(ArchiveExtractor... newExtractors)
     {
         initExtractors();
-        for(var e : extractors)
+        for(var e : _extractors)
         {
-            this.extractors.add(e);
+            this._extractors.add(e);
         }
         return this;
     }
@@ -347,7 +347,7 @@ public class JWalker
     public JWalker extractWith(Iterable<ArchiveExtractor> newExtractors)
     {
         initExtractors();
-        newExtractors.forEach(this.extractors::add);
+        newExtractors.forEach(this._extractors::add);
         return this;
     }
 
@@ -363,34 +363,34 @@ public class JWalker
     }
 
 
-    int maxDepth()                 { return maxDepth; }
-    boolean recurseIntoArchives()  { return recurseIntoArchives; }
-    boolean followLinks()          { return followLinks; }
-    boolean unixAttributes()       { return unixAttributes; }
-    boolean dosAttributes()        { return dosAttributes; }
+    int maxDepth()                 { return _maxDepth; }
+    boolean recurseIntoArchives()  { return _recurseIntoArchives; }
+    boolean followLinks()          { return _followLinks; }
+    boolean unixAttributes()       { return _unixAttributes; }
+    boolean dosAttributes()        { return _dosAttributes; }
 
 
     boolean showFileType(FileType type)
     {
-        return ((fileTypes == null) ? defaultFileTypes() : fileTypes).contains(type) != invertedFileTypes;
+        return ((_fileTypes == null) ? defaultFileTypes() : _fileTypes).contains(type) != _invertedFileTypes;
     }
 
-    List<PathMatcher> inclusions() { return inclusions; }
-    List<PathMatcher> exclusions() { return exclusions; }
+    List<PathMatcher> inclusions() { return _inclusions; }
+    List<PathMatcher> exclusions() { return _exclusions; }
 
     Map<String,ArchiveExtractor> extractorMap()
     {
-        if(extractorMap == null)
+        if(_extractorMap == null)
         {
-            extractorMap = new HashMap<>();
-            for(var extractor : (extractors == null) ? defaultExtractors() : extractors)
+            _extractorMap = new HashMap<>();
+            for(var extractor : (_extractors == null) ? defaultExtractors() : _extractors)
             {
                 for(var fileExtension : extractor.getFileExtensions())
                 {
-                    extractorMap.put(fileExtension, extractor);
+                    _extractorMap.put(fileExtension, extractor);
                 }
             }
         }
-        return extractorMap;
+        return _extractorMap;
     }
 }

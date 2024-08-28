@@ -57,8 +57,8 @@ public final class GzipHostFS
         this.label = label;
     }
 
-    private int getCode()     { return code; }
-    private String getLabel() { return label; }
+    public int getCode()     { return code; }
+    public String getLabel() { return label; }
 
     @Override
     public String toString() { return label; }

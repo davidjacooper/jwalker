@@ -1,7 +1,7 @@
 package au.djac.jwalker.clitools;
 import au.djac.jwalker.*;
 import au.djac.jwalker.tree.*;
-import au.djac.jprinttree.*;
+import au.djac.treewriter.*;
 
 import picocli.CommandLine;
 
@@ -27,79 +27,15 @@ public class ArTree implements Callable<Integer>
     @CommandLine.Parameters(index = "0", description = "Root of the tree to display.", defaultValue = ".")
     private File rootFile;
 
-    // @CommandLine.Option(names = {"-a", "--ascii"},
-    //                     description = "Use standard ASCII symbols only (if non-ASCII box-drawing symbols don't display properly).")
-    // private boolean ascii;
-
     @Override
     public Integer call() throws IOException
     {
-        // var out = new TreePrintStream(System.out).preNodeLines(0);//.asciiLines();
-        //
-        // out.println("abc");
-        // out.startNode(false);
-        // out.println("def");
-        // out.startNode(false);
-        // out.println("ghi");
-        // out.startNode(true);
-        // out.println("x\ny\nz");
-        // out.startNode(true);
-        // out.println("x");
-        // out.startNode(true);
-        // out.println("x");
-        // out.startNode(true);
-        // out.println("x");
-        // out.endNode();
-        // out.endNode();
-        // out.endNode();
-        // out.endNode();
-        // out.endNode();
-        // out.startNode(true);
-        // out.println("jkl");
-        // out.endNode();
-        // out.endNode();
-        // out.startNode(true);
-        // out.println("mno");
-        // out.endNode();
-        //
-        // out.printTree(5, n -> IntStream.range(0, n).boxed().collect(Collectors.toList()), String::valueOf);
-        //
-        // out.printTree("hello", s -> IntStream.range(1, s.length()).mapToObj(s::substring).collect(Collectors.toList()), String::valueOf);
-
-        var rootPath = rootFile.toPath();
-
-        var tree = new JWalker().makeTree(rootPath);
-
+        var tree = new JWalker().makeTree(rootFile.toPath());
         var out = new TreeWriter(System.out);
-        out.options().topMargin(1); //.topConnectorLength(1); //.connector("+").parentLine("|");
-
+        out.getOptions().topMargin(0);
         out.printTree(tree.getRoot(),
                       FileTreeNode::getChildren,
                       FileTreeNode::getName);
-        out.flush();
-
-        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
-        out.startNode(false, out.options().copy().asPreLabel());
-        out.println("label!");
-        out.endNode();
-        out.startNode(false);
-        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
-        out.startNode(false, out.options().copy().asLabel());
-        out.println("label!");
-        out.endNode();
-        out.startNode(false);
-        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
-        out.endNode();
-        out.println("just some text");
-        out.printLabel("another label");
-        out.startNode(true);
-        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
-        out.endNode();
-        out.endNode();
-        out.startNode(true);
-        out.println("abcdefghijklmnopqrstuvwxyz".repeat(10));
-        out.endNode();
-
         return 0;
     }
 }

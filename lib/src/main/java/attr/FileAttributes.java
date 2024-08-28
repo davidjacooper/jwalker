@@ -16,7 +16,8 @@ import java.util.function.*;
  * mix of different kinds of attributes, and this may not be well represented by
  * {@code BasicFileAttributes} or even its subinterfaces {@link PosixFileAttributes} and
  * {@link DosFileAttributes} (which appear to contemplate a single, homogenous filesystem).
- * Hence, this class provides a dynamically extendable map of attributes.
+ *
+ * <p>Hence, this class provides a dynamically extendable map of attributes.
  */
 public class FileAttributes implements BasicFileAttributes
 {
@@ -50,7 +51,7 @@ public class FileAttributes implements BasicFileAttributes
     /** File modification time. */
     public static final Attr<FileTime> LAST_MODIFIED_TIME = new Attr<>("last modified time");
 
-    /** File type; e.g., {@link REGULAR_FILE}, {@link DIRECTORY}, etc. */
+    /** File type; e.g., {@link FileType#REGULAR_FILE}, {@link FileType#DIRECTORY}, etc. */
     public static final Attr<FileType> TYPE = new Attr<>("file type");
 
     /** File size, in bytes (uncompressed, where applicable). */

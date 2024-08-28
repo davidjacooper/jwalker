@@ -11,7 +11,8 @@ public final class DosAttributes
      * Create a {@code DosAttributes} instance based on the field used to store DOS (or Windows)
      * attributes.
      *
-     * @param attr A DOS/Windows attribute field.
+     * @param attrField A DOS/Windows attribute field, with certain bits set to represent certain
+     * attributes.
      * @return A new {@code DosAttributes} instance, reflecting the same attributes.
      */
     public static DosAttributes forAttrField(int attrField)
@@ -49,6 +50,7 @@ public final class DosAttributes
     public boolean isSystem()   { return (attrField & 0x04) == 0x04; }
     public boolean isArchive()  { return (attrField & 0x20) == 0x20; }
 
+    @Override
     public String toString()
     {
         return new String(new char[] {

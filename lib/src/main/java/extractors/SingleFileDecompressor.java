@@ -136,7 +136,7 @@ public class SingleFileDecompressor extends ArchiveExtractor
 
             var factory = CompressorStreamFactory.getSingleton();
             var bufIn = new BufferedInputStream(input.get());
-            var inputStream = compressor.equals(AUTODETECT)
+            var inputStream = AUTODETECT.equals(compressor)
                 ? factory.createCompressorInputStream(bufIn)
                 : factory.createCompressorInputStream(compressor, bufIn);
 
@@ -205,9 +205,6 @@ public class SingleFileDecompressor extends ArchiveExtractor
                 uncompressedMatchPath = displayPath.resolve(entryName);
                 uncompressedDisplayPath = uncompressedMatchPath;
             }
-
-            System.out.printf("SingleFileDecompressor: matchPath==%s, displayPath==%s, attr==%s\n",
-                uncompressedMatchPath, uncompressedDisplayPath, uncompressedAttr);
 
             operation.filterFile(
                 null, // No filesystem path available.

@@ -70,7 +70,7 @@ public class RarExtractor extends RandomAccessArchiveExtractor
                     throw new ArchiveSkipException();
                 }
             }
-            catch(InterruptedException e) { throw new AssertionError(); }
+            catch(InterruptedException e) { throw new AssertionError(e); }
 
             // Walk directory tree
             operation.walkTree(

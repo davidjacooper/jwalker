@@ -45,8 +45,8 @@ public class JWalkerOperation
     private final FileConsumer fileConsumer;
     private final ErrorHandler errorHandler;
     private final LinkOption[] linkOptions;
-    private final HashSet<Path> excludedSubPaths = new HashSet<>();
-    private final HashSet<Path> nonExcludedSubPaths = new HashSet<>();
+    private final Set<Path> excludedSubPaths = new HashSet<>();
+    private final Set<Path> nonExcludedSubPaths = new HashSet<>();
     private int rootDepth = 0;
 
     public JWalkerOperation(JWalker options,
@@ -181,7 +181,6 @@ public class JWalkerOperation
                     @Override
                     public FileVisitResult preVisitDirectory(Path entryFsPath, BasicFileAttributes attrs)
                     {
-                        System.err.printf("SUBTREE: %s\n", entryFsPath);
                         // To get a 'display path' for the file, we:
                         // (1) relativize() it against the root path, which strips the root path
                         //     component(s) off.
@@ -195,7 +194,6 @@ public class JWalkerOperation
                         {
                             if(matcher.matches(entryFsPath))
                             {
-                                System.err.printf("EXCLUDING SUBTREE\n");
                                 // Directory matches exclusion pattern; skip the entire branch.
                                 excludedSubPaths.add(entryDisplayPath);
                                 return FileVisitResult.SKIP_SUBTREE;
@@ -208,8 +206,6 @@ public class JWalkerOperation
                                    entryDisplayPath,
                                    null,
                                    attrFn.apply(entryFsPath, attrs));
-
-                        System.err.printf("INCLUDING SUBTREE\n");
 
                         // Descend into the directory.
                         return FileVisitResult.CONTINUE;
@@ -232,7 +228,6 @@ public class JWalkerOperation
                     @Override
                     public FileVisitResult visitFile(Path entryFsPath, BasicFileAttributes attrs)
                     {
-                        System.err.printf("FILE: %s\n", entryFsPath);
                         var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
                         filterFile(entryFsPath,
                                    entryDisplayPath, // matchPath, equal to the displayPath here.
