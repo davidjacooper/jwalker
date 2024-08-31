@@ -99,10 +99,11 @@ public class JWalkerOperation
                 }
                 catch(IOException e)
                 {
-                    error(fsPath,
-                          attr,
-                          String.format("Could not read POSIX file attributes from '%s'", fsPath),
-                          e);
+                    handleError(
+                        fsPath,
+                        attr,
+                        String.format("Could not read POSIX file attributes from '%s'", fsPath),
+                        e);
                 }
 
                 if(posixAttr != null)
@@ -126,10 +127,11 @@ public class JWalkerOperation
                 }
                 catch(IOException e)
                 {
-                    error(fsPath,
-                          attr,
-                          String.format("Could not read DOS file attributes from '%s'", fsPath),
-                          e);
+                    handleError(
+                        fsPath,
+                        attr,
+                        String.format("Could not read DOS file attributes from '%s'", fsPath),
+                        e);
                 }
 
                 if(dosAttr != null)
@@ -145,11 +147,11 @@ public class JWalkerOperation
     }
 
 
-    public void error(Path path, FileAttributes attr, String msg, Exception ex)
+    public void handleError(Path path, FileAttributes attr, String msg, Exception ex)
     {
         // Called from various ArchiveExtractor subclasses, and within this class.
         log.error(msg, ex);
-        errorHandler.error(path, attr, msg, ex);
+        errorHandler.handleError(path, attr, msg, ex);
     }
 
     public void walkTree(Path rootPath)
@@ -217,10 +219,11 @@ public class JWalkerOperation
                         if(e != null)
                         {
                             var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
-                            error(entryDisplayPath,
-                                  new FileAttributes(),
-                                  String.format("Cannot visit directory '%s'", entryDisplayPath),
-                                  e);
+                            handleError(
+                                entryDisplayPath,
+                                new FileAttributes(),
+                                String.format("Cannot visit directory '%s'", entryDisplayPath),
+                                e);
                         }
                         return FileVisitResult.CONTINUE;
                     }
@@ -242,10 +245,11 @@ public class JWalkerOperation
                     public FileVisitResult visitFileFailed(Path entryFsPath, IOException e)
                     {
                         var entryDisplayPath = displayPath.resolve(fsPath.relativize(entryFsPath));
-                        error(entryDisplayPath,
-                              new FileAttributes(),
-                              String.format("Cannot visit file '%s'", entryDisplayPath),
-                              e);
+                        handleError(
+                            entryDisplayPath,
+                            new FileAttributes(),
+                            String.format("Cannot visit file '%s'", entryDisplayPath),
+                            e);
                         return FileVisitResult.CONTINUE;
                     }
                 }
@@ -254,10 +258,11 @@ public class JWalkerOperation
         catch(IOException e)
         {
             // Theoretically impossible, since none of the above visitor methods throw IOException.
-            error(displayPath,
-                  new FileAttributes(),
-                  String.format("Cannot traverse directory tree at '%s'", fsPath),
-                  e);
+            handleError(
+                displayPath,
+                new FileAttributes(),
+                String.format("Cannot traverse directory tree at '%s'", fsPath),
+                e);
         }
     }
 

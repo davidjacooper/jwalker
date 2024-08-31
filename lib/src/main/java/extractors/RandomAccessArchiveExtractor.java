@@ -72,10 +72,11 @@ public abstract class RandomAccessArchiveExtractor extends ArchiveExtractor
         }
         catch(IOException e)
         {
-            operation.error(displayPath,
-                            archiveAttr,
-                            "Could not extract archive '" + displayPath + "': " + e.getMessage(),
-                            e);
+            operation.handleError(
+                displayPath,
+                archiveAttr,
+                "Could not extract archive '" + displayPath + "': " + e.getMessage(),
+                e);
             throw new ArchiveSkipException(e);
         }
     }

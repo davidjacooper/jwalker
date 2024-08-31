@@ -10,11 +10,14 @@
     </description>
 
     <rule ref="category/java/errorprone.xml">
-        <exclude name="NullAssignment" />
         <exclude name="AvoidLiteralsInIfCondition" />
+        <exclude name="MissingSerialVersionUID" />
+        <exclude name="NullAssignment" />
+        <exclude name="UseLocaleWithCaseConversions" />
     </rule>
     <rule ref="category/java/bestpractices.xml" />
     <rule ref="category/java/performance.xml">
+        <exclude name="AvoidInstantiatingObjectsInLoops" />
         <exclude name="RedundantFieldInitializer" />
     </rule>
 </ruleset>

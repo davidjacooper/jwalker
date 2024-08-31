@@ -15,7 +15,7 @@ import java.util.stream.*;
                      mixinStandardHelpOptions = true,
                      version = "0.1",
                      description = "Prints a file tree, transparently recursing into archives (ZIP, TAR, etc.)",
-                     footer = "Copyright (c) 2023 by David J A Cooper.")
+                     footer = "Copyright (c) 2023-24 by David J A Cooper.")
 
 public class ArTree implements Callable<Integer>
 {

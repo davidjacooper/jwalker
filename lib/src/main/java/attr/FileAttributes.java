@@ -55,6 +55,7 @@ public class FileAttributes implements BasicFileAttributes
     public static final Attr<FileType> TYPE = new Attr<>("file type");
 
     /** File size, in bytes (uncompressed, where applicable). */
+    @SuppressWarnings("PMD.AvoidFieldNameMatchingMethodName")
     public static final Attr<Long> SIZE = new Attr<>("size");
 
     /** In UNIX archives/filesystems, the username of the file's owner. */
@@ -137,6 +138,7 @@ public class FileAttributes implements BasicFileAttributes
         return attrMap.containsKey(attr);
     }
 
+    @SuppressWarnings("PMD.CompareObjectsWithEquals")  // Reference equality (==) intended
     public boolean isType(FileType... types)
     {
         var actualType = get(TYPE);

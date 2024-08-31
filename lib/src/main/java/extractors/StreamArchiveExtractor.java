@@ -93,9 +93,11 @@ public class StreamArchiveExtractor extends ArchiveExtractor
                 archiver,
                 new BufferedInputStream(input.get())))
         {
-            ArchiveEntry entry;
-            while((entry = ais.getNextEntry()) != null)
+            while(true)
             {
+                ArchiveEntry entry = ais.getNextEntry();
+                if(entry == null) { break; }
+
                 var entryPath = Path.of("", entry.getName().split(ARCHIVE_DIRECTORY_SEPARATOR));
                 log.debug("File in archive: {}", entryPath);
 
@@ -318,7 +320,7 @@ public class StreamArchiveExtractor extends ArchiveExtractor
         }
         catch(ArchiveException | IOException e)
         {
-            operation.error(
+            operation.handleError(
                 displayPath,
                 archiveAttr,
                 "Could not extract archive '" + displayPath + "': " + e.getMessage(),

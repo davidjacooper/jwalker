@@ -135,7 +135,11 @@ public class SingleFileDecompressor extends ArchiveExtractor
             }
 
             var factory = CompressorStreamFactory.getSingleton();
+
+            @SuppressWarnings("PMD.CloseResource")
             var bufIn = new BufferedInputStream(input.get());
+
+            @SuppressWarnings("PMD.CloseResource")
             var inputStream = AUTODETECT.equals(compressor)
                 ? factory.createCompressorInputStream(bufIn)
                 : factory.createCompressorInputStream(compressor, bufIn);
@@ -215,7 +219,7 @@ public class SingleFileDecompressor extends ArchiveExtractor
         }
         catch(CompressorException | IOException e)
         {
-            operation.error(
+            operation.handleError(
                 displayPath,
                 attr,
                 "Could not decompress file '" + displayPath + "': " + e.getMessage(),

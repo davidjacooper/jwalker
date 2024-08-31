@@ -28,7 +28,7 @@ public class FileTree
     }
 
     private Map<Path,FileTreeNode> nodeMap = new HashMap<>();
-    private FileTreeNode rootNode = null;
+    private FileTreeNode rootNode;
     private List<ErrorRecord> errors = null;
 
     public FileTree(Path rootPath)

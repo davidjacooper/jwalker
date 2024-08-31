@@ -57,7 +57,7 @@ public class RarExtractor extends RandomAccessArchiveExtractor
             {
                 if(!proc.waitFor(UNRAR_COMMAND_TIMEOUT, TimeUnit.SECONDS))
                 {
-                    operation.error(
+                    operation.handleError(
                         displayPath,
                         archiveAttr,
                         String.format(

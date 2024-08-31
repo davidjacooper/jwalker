@@ -28,8 +28,8 @@ public class JWalker
     @FunctionalInterface
     public interface ErrorHandler
     {
-        public void error(Path displayPath, FileAttributes attr,
-                          String message, Exception exception);
+        public void handleError(Path displayPath, FileAttributes attr,
+                                String message, Exception exception);
     }
 
 
@@ -281,7 +281,9 @@ public class JWalker
 
     private PathMatcher globMatcher(String globPattern)
     {
+        @SuppressWarnings("PMD.CloseResource")
         var fs = FileSystems.getDefault();
+
         var fullPattern = "glob:{**" + fs.getSeparator() + ",}" + globPattern;
         var wrappedMatcher = fs.getPathMatcher(fullPattern);
 
