@@ -1,4 +1,4 @@
-package au.djac.jwalker.clitools;
+package au.djac.jwalker.artree;
 import au.djac.jwalker.*;
 import au.djac.jwalker.tree.*;
 import au.djac.treewriter.*;

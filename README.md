@@ -2,7 +2,7 @@
 
 A simple Java library for recursively finding files, similar to [`Files.walkFileTree()`][Files.walkFileTree], though with archive support and with a somewhat different interface.
 
-JWalker supports recursing into certain archive formats: those supported by [Apache Commons Compress][]---AR, ARJ, CPIO, DUMP, TAR, 7Z and ZIP---as well as RAR _if_ an external `unrar` command is available. Archive files may be arbitrarily nested.
+JWalker supports recursing into certain archive formats: those supported by [Apache Commons Compress][] -- AR, ARJ, CPIO, DUMP, TAR, 7Z and ZIP -- as well as RAR _if_ an external `unrar` command is available. Archive files may be arbitrarily nested.
 
 Basic usage is as follows:
 

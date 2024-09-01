@@ -3,19 +3,17 @@ plugins {
     id 'pmd'
 }
 
-base {
-    archivesName = 'artree'
-}
+version = '0.1'
 
 repositories {
 //     maven {
 //         url 'file:///home/dave/work/treewriter/lib/build/repo'
 //     }
     maven {
-        url uri("https://maven.pkg.github.com/davidjacooper/treewriter")
+        url uri('https://maven.pkg.github.com/davidjacooper/treewriter')
         credentials {
-            username = System.getenv("GITHUB_USERNAME")
-            password = System.getenv("GITHUB_TOKEN")
+            username = System.getenv('GITHUB_USERNAME')
+            password = System.getenv('GITHUB_TOKEN')
         }
     }
     mavenCentral()
@@ -38,13 +36,12 @@ java {
 }
 
 application {
-    applicationName = 'artree'
-    mainClass = 'au.djac.jwalker.clitools.ArTree'
+    mainClass = 'au.djac.jwalker.artree.ArTree'
 }
 
 
 tasks.withType(JavaCompile) {
-    options.compilerArgs << "-Xlint:all,-serial"
+    options.compilerArgs << '-Xlint:all,-serial'
 }
 
 pmd {
@@ -53,11 +50,6 @@ pmd {
     rulesMinimumPriority = 5
     ruleSetFiles = files('../pmd-ruleset.xml')
 }
-
-// tasks.named("startScripts") {
-//     applicationName = "artree"
-// }
-
 
 tasks.withType(JavaExec) {
     // This is how we run the code via Gradle itself. None of this should find its way into the
