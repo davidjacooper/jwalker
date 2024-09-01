@@ -31,7 +31,10 @@ public class ArTree implements Callable<Integer>
     public Integer call() throws IOException
     {
         var tree = new JWalker().makeTree(rootFile.toPath());
+
+        @SuppressWarnings("PMD.CloseResource")
         var out = new TreeWriter(System.out);
+
         out.getOptions().topMargin(0);
         out.printTree(tree.getRoot(),
                       FileTreeNode::getChildren,

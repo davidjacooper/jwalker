@@ -8,23 +8,23 @@ base {
 }
 
 repositories {
-    maven {
-        url 'file:///home/dave/work/treewriter/lib/build/repo'
-    }
 //     maven {
-//         url uri("https://maven.pkg.github.com/davidjacooper/treewriter")
-//         credentials {
-//             username = System.getenv("GITHUB_USERNAME")
-//             password = System.getenv("GITHUB_TOKEN")
-//         }
+//         url 'file:///home/dave/work/treewriter/lib/build/repo'
 //     }
+    maven {
+        url uri("https://maven.pkg.github.com/davidjacooper/treewriter")
+        credentials {
+            username = System.getenv("GITHUB_USERNAME")
+            password = System.getenv("GITHUB_TOKEN")
+        }
+    }
     mavenCentral()
 }
 
 dependencies {
     implementation project(':lib')
 
-    implementation 'au.djac:treewriter:1.0.0'
+    implementation 'au.djac:treewriter:1.0.1'
 
     implementation 'info.picocli:picocli:4.7.6'
     implementation 'org.slf4j:slf4j-api:2.0.16'
@@ -38,6 +38,7 @@ java {
 }
 
 application {
+    applicationName = 'artree'
     mainClass = 'au.djac.jwalker.clitools.ArTree'
 }
 
@@ -52,6 +53,10 @@ pmd {
     rulesMinimumPriority = 5
     ruleSetFiles = files('../pmd-ruleset.xml')
 }
+
+// tasks.named("startScripts") {
+//     applicationName = "artree"
+// }
 
 
 tasks.withType(JavaExec) {

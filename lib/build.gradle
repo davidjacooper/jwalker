@@ -3,10 +3,11 @@ plugins {
     id 'groovy'
     id 'pmd'
     id 'maven-publish'
+    id 'signing'
 }
 
 group = 'au.djac'
-version = '1.0.0'
+version = '0.1'
 
 repositories {
     mavenCentral()
@@ -24,13 +25,17 @@ dependencies {
     implementation 'org.brotli:dec:0.1.2' // For Brotli compression (.br)
 
     // Needed for IOUtils and FileUtils.
-    implementation 'commons-io:commons-io:2.11.0'
+    implementation 'commons-io:commons-io:2.16.1'
 
     // Testing with Spock
     testImplementation 'org.codehaus.groovy:groovy:3.0.15'
     testImplementation 'org.spockframework:spock-core:2.2-groovy-3.0'
     testImplementation 'junit:junit:4.13.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+base {
+    archivesName = rootProject.name
 }
 
 java {
@@ -41,18 +46,12 @@ java {
     withSourcesJar()
 }
 
-compileJava {
+tasks.withType(JavaCompile) {
     options.compilerArgs << "-Xlint:all,-serial"
 }
 
-tasks.named('test') {
+tasks.withType(Test) {
     useJUnitPlatform()
-}
-
-javadoc {
-    options {
-        links 'https://docs.oracle.com/en/java/javase/11/docs/api/'
-    }
 }
 
 pmd {
@@ -62,9 +61,29 @@ pmd {
     ruleSetFiles = files('../pmd-ruleset.xml')
 }
 
+tasks.named("jar") {
+    manifest {
+        attributes(
+            'Implementation-Title': rootProject.name,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor': 'David J A Cooper',
+            'Specification-Title': rootProject.name,
+            'Specification-Version': project.version,
+            'Specification-Vendor': 'David J A Cooper'
+        )
+    }
+}
+
+tasks.withType(Javadoc) {
+    options {
+        links 'https://docs.oracle.com/en/java/javase/11/docs/api/'
+    }
+}
+
 publishing {
     publications {
         JWalkerLibrary(MavenPublication) {
+            artifactId = 'jwalker'
             from components.java
 
             pom {
@@ -97,9 +116,22 @@ publishing {
     }
 
     repositories {
+//         maven {
+//             name = 'localRepo'
+//             url = layout.buildDirectory.dir('repo')
+//         }
         maven {
-            name = 'localRepo'
-            url = layout.buildDirectory.dir('repo')
+            name = 'GitHubPackages'
+            url = 'https://maven.pkg.github.com/davidjacooper/jwalker'
+            credentials {
+                username = System.getenv('GITHUB_USERNAME')
+                password = System.getenv('GITHUB_TOKEN')
+            }
         }
     }
+}
+
+signing {
+    useGpgCmd()
+    sign publishing.publications.JWalkerLibrary
 }
